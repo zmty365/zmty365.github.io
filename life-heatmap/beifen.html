@@ -1,0 +1,935 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>生命管理热力图 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="&#x2F;\* 内嵌CSS - 直接复制life-heatmap.css的全部内容 \*&#x2F;  \* {  &nbsp;   margin: 0;  &nbsp;   padding: 0;  &nbsp;   box-sizing: border-box;  &nbsp;   font-family: -apple-system, BlinkMacSystemFont, &#39;Segoe UI&#39;, &#39;No">
+<meta property="og:type" content="website">
+<meta property="og:title" content="生命管理热力图">
+<meta property="og:url" content="http://zmty365.github.io/life-heatmap/beifen.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="&#x2F;\* 内嵌CSS - 直接复制life-heatmap.css的全部内容 \*&#x2F;  \* {  &nbsp;   margin: 0;  &nbsp;   padding: 0;  &nbsp;   box-sizing: border-box;  &nbsp;   font-family: -apple-system, BlinkMacSystemFont, &#39;Segoe UI&#39;, &#39;No">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2024-05-20T02:00:00.000Z">
+<meta property="article:modified_time" content="2025-09-13T09:56:37.381Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json"></script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/life-heatmap/beifen.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '生命管理热力图',
+  isHighlightShrink: false,
+  isToc: false,
+  pageType: 'page'
+}</script><meta name="generator" content="Hexo 7.3.0"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">2</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="page" id="body-wrap"><header class="not-home-page" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="page-site-info"><h1 id="site-title">生命管理热力图</h1></div></header><main class="layout" id="content-inner"><div id="page"><div class="container" id="article-container"><style>
+
+/\* 内嵌CSS - 直接复制life-heatmap.css的全部内容 \*/
+
+\* {
+
+&nbsp;   margin: 0;
+
+&nbsp;   padding: 0;
+
+&nbsp;   box-sizing: border-box;
+
+&nbsp;   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+
+}
+
+
+
+
+
+.container {
+
+&nbsp;   width: 100%;
+
+&nbsp;   max-width: 1000px;
+
+&nbsp;   background-color: #f6f8fa;
+
+&nbsp;   border-radius: 6px;
+
+&nbsp;   padding: 20px;
+
+&nbsp;   margin-top: 30px;
+
+&nbsp;   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+
+&nbsp;   border: 1px solid #d0d7de;
+
+}
+
+
+
+header {
+
+&nbsp;   text-align: center;
+
+&nbsp;   margin-bottom: 30px;
+
+}
+
+
+
+h1 {
+
+&nbsp;   font-size: 24px;
+
+&nbsp;   color: #0969da;
+
+&nbsp;   margin-top: 20px;
+
+&nbsp;   margin-bottom: 20px;
+
+}
+
+
+
+.description {
+
+&nbsp;   color: #57606a;
+
+&nbsp;   font-size: 14px;
+
+&nbsp;   margin-top: 15px;
+
+&nbsp;   margin-bottom: 5px;
+
+}
+
+
+
+.legend {
+
+&nbsp;   display: flex !important;
+
+&nbsp;   align-items: center !important;
+
+&nbsp;   justify-content: flex-end !important;
+
+&nbsp;   margin-top: 15px !important;
+
+&nbsp;   font-size: 13px !important;
+
+&nbsp;   color: #57606a !important;
+
+}
+
+
+
+.legend span {
+
+&nbsp;   margin: 0 5px;
+
+}
+
+
+
+.legend-colors {
+
+&nbsp;   display: flex !important;
+
+&nbsp;   margin-left: 5px !important;
+
+}
+
+
+
+.legend-color {
+
+&nbsp;   width: 12px !important;
+
+&nbsp;   height: 12px !important;
+
+&nbsp;   margin: 0 2px !important;
+
+&nbsp;   border-radius: 2px !important;
+
+}
+
+
+
+.heatmap-container {
+
+&nbsp;   overflow-x: auto;
+
+&nbsp;   margin-top: 20px;
+
+}
+
+
+
+.months {
+
+&nbsp;   display: flex;
+
+&nbsp;   margin-left: 40px;
+
+&nbsp;   margin-bottom: 5px;
+
+&nbsp;   font-size: 6px;
+
+&nbsp;   color: #57606a;
+
+}
+
+
+
+.month {
+
+&nbsp;   width: 8.5px;
+
+&nbsp;   text-align: center;
+
+&nbsp;   margin: 0 2px;
+
+}
+
+
+
+.days {
+
+&nbsp;   display: flex;
+
+&nbsp;   flex-direction: column;
+
+&nbsp;   font-size: 8px;
+
+&nbsp;   margin-right: 5px;
+
+&nbsp;   margin-top: -1px;
+
+&nbsp;   color: #57606a;
+
+}
+
+
+
+.day {
+
+&nbsp;   height: 8px;
+
+&nbsp;   text-align: right;
+
+&nbsp;   margin: 2px 0;
+
+}
+
+
+
+.cells {
+
+&nbsp;   display: flex;
+
+&nbsp;   flex-direction: row;
+
+}
+
+
+
+.week-column {
+
+&nbsp;   display: flex;
+
+&nbsp;   flex-direction: column;
+
+}
+
+
+
+.cell {
+
+&nbsp;   width: 9px;
+
+&nbsp;   height: 9px;
+
+&nbsp;   margin: 2px;
+
+&nbsp;   border-radius: 2px;
+
+&nbsp;   background-color: #ebedf0;
+
+&nbsp;   position: relative;
+
+&nbsp;   border: 1px solid rgba(27, 31, 35, 0.06);
+
+&nbsp;   transition: transform 0.1s ease;
+
+}
+
+
+
+.cell:hover {
+
+&nbsp;   transform: scale(1.2) translateZ(0);
+
+&nbsp;   z-index: 1000;
+
+&nbsp;   box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+
+&nbsp;   position: relative;
+
+}
+
+
+
+.heatmap-container {
+
+&nbsp;   overflow: visible;
+
+}
+
+
+
+.cells {
+
+&nbsp;   position: relative;
+
+}
+
+
+
+.cell:hover::after {
+
+&nbsp;   content: attr(data-tooltip);
+
+&nbsp;   position: absolute;
+
+&nbsp;   bottom: 25px;
+
+&nbsp;   left: 50%;
+
+&nbsp;   transform: translateX(-50%);
+
+&nbsp;   z-index: 9999;
+
+&nbsp;   background-color: #1a1a1a;
+
+&nbsp;   color: #fff;
+
+&nbsp;   padding: 10px;
+
+&nbsp;   border-radius: 5px;
+
+&nbsp;   white-space: pre-line;
+
+&nbsp;   font-size: 12px;
+
+&nbsp;   line-height: 1.6;
+
+&nbsp;   min-width: 180px;
+
+&nbsp;   text-align: left;
+
+&nbsp;   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+
+}
+
+
+
+.score-0 { background-color: #eeeeee; }
+
+.score-1 { background-color: #c6e48b; }
+
+.score-2 { background-color: #7bc96f; }
+
+.score-3 { background-color: #49a14e; }
+
+.score-4 { background-color: #2e8845; }
+
+.score-5 { background-color: #19692c; }
+
+
+
+@media (max-width: 768px) {
+
+&nbsp;   .heatmap-container {
+
+&nbsp;       overflow-x: scroll;
+
+&nbsp;   }
+
+
+
+&nbsp;   .months {
+
+&nbsp;       margin-left: 25px;
+
+&nbsp;   }
+
+
+
+&nbsp;   .month {
+
+&nbsp;       font-size: 9px;
+
+&nbsp;   }
+
+
+
+&nbsp;   .day {
+
+&nbsp;       font-size: 9px;
+
+&nbsp;   }
+
+}
+
+</style>
+
+
+
+<header>
+
+<p>&nbsp;   <h1>生命管理热力图</h1></p>
+<p>&nbsp;   <p class="description">追踪您每天在五个关键维度上的表现：学习、运动、睡眠、娱乐和陪伴</p></p>
+</header>
+
+
+
+<div class="container">
+
+<p>&nbsp;   <div class="heatmap-container"></p>
+<p>&nbsp;       <div class="months" id="months"></div></p>
+<p>&nbsp;       <div style="display: flex;"></p>
+<p>&nbsp;           <div class="days" id="days"></div></p>
+<p>&nbsp;           <div class="cells" id="cells"></div></p>
+<p>&nbsp;       </div></p>
+<p>&nbsp;   </div></p>
+<p>&nbsp;   <div class="legend"></p>
+<p>&nbsp;       <span>较差</span></p>
+<p>&nbsp;       <div class="legend-colors"></p>
+<p>&nbsp;           <div class="legend-color score-0"></div></p>
+<p>&nbsp;           <div class="legend-color score-1"></div></p>
+<p>&nbsp;           <div class="legend-color score-2"></div></p>
+<p>&nbsp;           <div class="legend-color score-3"></div></p>
+<p>&nbsp;           <div class="legend-color score-4"></div></p>
+<p>&nbsp;           <div class="legend-color score-5"></div></p>
+<p>&nbsp;       </div></p>
+<p>&nbsp;       <span>优秀</span></p>
+<p>&nbsp;   </div></p>
+</div>
+
+
+
+<script>
+
+// 内嵌JS - 直接复制life-heatmap.js的全部内容
+
+document.addEventListener('DOMContentLoaded', function () {
+
+&nbsp;   const lifeData = {
+
+&nbsp;       "2025-09-12": { study: 3, exercise: 2, sleep: 3, entertainment: 4, family: 1 },
+
+&nbsp;       "2025-09-13": { study: 4, exercise: 1, sleep: 4, entertainment: 4, family: 3 }
+
+&nbsp;   };
+
+
+
+&nbsp;   renderLifeHeatmap(lifeData);
+
+
+
+&nbsp;   function renderLifeHeatmap(data) {
+
+&nbsp;       const cellsContainer = document.getElementById('cells');
+
+&nbsp;       const monthsContainer = document.getElementById('months');
+
+&nbsp;       const daysContainer = document.getElementById('days');
+
+
+
+&nbsp;       cellsContainer.innerHTML = '';
+
+&nbsp;       monthsContainer.innerHTML = '';
+
+&nbsp;       daysContainer.innerHTML = '';
+
+
+
+&nbsp;       const daysOfWeek = \['日', '一', '二', '三', '四', '五', '六'];
+
+&nbsp;       const monthNames = \['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+
+
+
+&nbsp;       for (let i = 0; i < 7; i++) {
+
+&nbsp;           const dayEl = document.createElement('div');
+
+&nbsp;           dayEl.className = 'day';
+
+&nbsp;           dayEl.textContent = daysOfWeek\[i];
+
+&nbsp;           daysContainer.appendChild(dayEl);
+
+&nbsp;       }
+
+
+
+&nbsp;       const today = new Date();
+
+&nbsp;       today.setHours(0, 0, 0, 0);
+
+
+
+&nbsp;       const oneYearAgo = new Date(today);
+
+&nbsp;       oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+&nbsp;       oneYearAgo.setDate(oneYearAgo.getDate() + 1);
+
+
+
+&nbsp;       const startDayOfWeek = oneYearAgo.getDay();
+
+&nbsp;       const startDate = new Date(oneYearAgo);
+
+&nbsp;       startDate.setDate(oneYearAgo.getDate() - startDayOfWeek);
+
+&nbsp;       startDate.setHours(0, 0, 0, 0);
+
+
+
+&nbsp;       const endDayOfWeek = today.getDay();
+
+&nbsp;       const daysToAddToEnd = (6 - endDayOfWeek + 7) % 7;
+
+&nbsp;       const endDate = new Date(today);
+
+&nbsp;       endDate.setDate(today.getDate() + daysToAddToEnd);
+
+&nbsp;       endDate.setHours(0, 0, 0, 0);
+
+
+
+&nbsp;       const totalDays = Math.ceil((endDate - startDate) / (24 \* 60 \* 60 \* 1000)) + 1;
+
+&nbsp;       const totalWeeks = Math.ceil(totalDays / 7);
+
+
+
+&nbsp;       let currentMonth = -1;
+
+&nbsp;       let currentYear = -1;
+
+&nbsp;       for (let week = 0; week < totalWeeks; week++) {
+
+&nbsp;           const weekStartDate = new Date(startDate);
+
+&nbsp;           weekStartDate.setDate(startDate.getDate() + week \* 7);
+
+
+
+&nbsp;           const monthEl = document.createElement('div');
+
+&nbsp;           monthEl.className = 'month';
+
+
+
+&nbsp;           if (weekStartDate.getMonth() !== currentMonth || weekStartDate.getFullYear() !== currentYear) {
+
+&nbsp;               currentMonth = weekStartDate.getMonth();
+
+&nbsp;               currentYear = weekStartDate.getFullYear();
+
+&nbsp;               monthEl.textContent = monthNames\[currentMonth];
+
+&nbsp;           }
+
+
+
+&nbsp;           monthsContainer.appendChild(monthEl);
+
+&nbsp;       }
+
+
+
+&nbsp;       for (let week = 0; week < totalWeeks; week++) {
+
+&nbsp;           const weekColumn = document.createElement('div');
+
+&nbsp;           weekColumn.className = 'week-column';
+
+
+
+&nbsp;           for (let day = 0; day < 7; day++) {
+
+&nbsp;               const cellDate = new Date(startDate);
+
+&nbsp;               cellDate.setDate(startDate.getDate() + week \* 7 + day);
+
+&nbsp;               cellDate.setHours(0, 0, 0, 0);
+
+
+
+&nbsp;               const isFuture = cellDate > today;
+
+&nbsp;               const isBeforeOneYearAgo = cellDate < oneYearAgo;
+
+
+
+&nbsp;               const cellEl = document.createElement('div');
+
+&nbsp;               cellEl.className = 'cell';
+
+&nbsp;               cellEl.setAttribute('data-date', formatDate(cellDate));
+
+
+
+&nbsp;               if (isFuture || isBeforeOneYearAgo) {
+
+&nbsp;                   cellEl.style.visibility = 'hidden';
+
+&nbsp;               } else {
+
+&nbsp;                   const dateKey = formatDateForData(cellDate);
+
+&nbsp;                   const dayScoreData = data\[dateKey] || { 
+
+&nbsp;                       study: 0, exercise: 0, sleep: 0, entertainment: 0, family: 0 
+
+&nbsp;                   };
+
+
+
+&nbsp;                   const totalScore = dayScoreData.study + dayScoreData.exercise + 
+
+&nbsp;                                     dayScoreData.sleep + dayScoreData.entertainment + 
+
+&nbsp;                                     dayScoreData.family;
+
+
+
+&nbsp;                   let scoreClass = 'score-0';
+
+&nbsp;                   if (totalScore >= 23) scoreClass = 'score-5';
+
+&nbsp;                   else if (totalScore >= 21) scoreClass = 'score-4';
+
+&nbsp;                   else if (totalScore >= 18) scoreClass = 'score-3';
+
+&nbsp;                   else if (totalScore >= 10) scoreClass = 'score-2';
+
+&nbsp;                   else if (totalScore >= 1) scoreClass = 'score-1';
+
+
+
+&nbsp;                   cellEl.classList.add(scoreClass);
+
+&nbsp;                   cellEl.setAttribute('data-tooltip', `
+
+${formatDate(cellDate)}
+
+
+
+学习: ${dayScoreData.study}/5
+
+运动: ${dayScoreData.exercise}/5
+
+睡眠: ${dayScoreData.sleep}/5
+
+娱乐: ${dayScoreData.entertainment}/5
+
+陪伴: ${dayScoreData.family}/5
+
+
+
+总分: ${totalScore}/25
+
+&nbsp;                   `.trim());
+
+&nbsp;               }
+
+
+
+&nbsp;               weekColumn.appendChild(cellEl);
+
+&nbsp;           }
+
+
+
+&nbsp;           cellsContainer.appendChild(weekColumn);
+
+&nbsp;       }
+
+&nbsp;   }
+
+
+
+&nbsp;   function formatDateForData(date) {
+
+&nbsp;       const year = date.getFullYear();
+
+&nbsp;       const month = String(date.getMonth() + 1).padStart(2, '0');
+
+&nbsp;       const day = String(date.getDate()).padStart(2, '0');
+
+&nbsp;       return `${year}-${month}-${day}`;
+
+&nbsp;   }
+
+
+
+&nbsp;   function formatDate(date) {
+
+&nbsp;       const year = date.getFullYear();
+
+&nbsp;       const month = date.getMonth() + 1;
+
+&nbsp;       const day = date.getDate();
+
+&nbsp;       return `${year}年${month}月${day}日`;
+
+&nbsp;   }
+
+});
+
+</script>
+
+
+
+</div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">2</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">2</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000101/" title="Namespace">Namespace</a><time datetime="2025-08-21T03:52:48.000Z" title="发表于 2025-08-21 11:52:48">2025-08-21</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000100/" title="Container">Container</a><time datetime="2025-08-21T03:50:24.000Z" title="发表于 2025-08-21 11:50:24">2025-08-21</time></div></div></div></div><div class="card-widget card-categories"><div class="item-headline">
+            <i class="fas fa-folder-open"></i>
+            <span>分类</span>
+            
+          </div>
+          <ul class="card-category-list" id="aside-cat-list">
+            <li class="card-category-list-item "><a class="card-category-list-link" href="/categories/%E5%AE%B9%E5%99%A8%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/"><span class="card-category-list-name">容器底层实现</span><span class="card-category-list-count">2</span></a></li>
+          </ul></div><div class="card-widget card-tags"><div class="item-headline"><i class="fas fa-tags"></i><span>标签</span></div><div class="card-tag-cloud"><a href="/tags/Namespace/" style="font-size: 1.1em; color: #999">Namespace</a> <a href="/tags/Container/" style="font-size: 1.5em; color: #99a9bf">Container</a></div></div><div class="card-widget card-archives">
+    <div class="item-headline">
+      <i class="fas fa-archive"></i>
+      <span>归档</span>
+      
+    </div>
+  
+    <ul class="card-archive-list">
+      
+        <li class="card-archive-list-item">
+          <a class="card-archive-list-link" href="/archives/2025/08/">
+            <span class="card-archive-list-date">
+              八月 2025
+            </span>
+            <span class="card-archive-list-count">2</span>
+          </a>
+        </li>
+      
+    </ul>
+  </div><div class="card-widget card-webinfo"><div class="item-headline"><i class="fas fa-chart-line"></i><span>网站信息</span></div><div class="webinfo"><div class="webinfo-item"><div class="item-name">文章数目 :</div><div class="item-count">2</div></div><div class="webinfo-item"><div class="item-name">本站总字数 :</div><div class="item-count">11.9k</div></div><div class="webinfo-item"><div class="item-name">本站访客数 :</div><div class="item-count" id="busuanzi_value_site_uv"><i class="fa-solid fa-spinner fa-spin"></i></div></div><div class="webinfo-item"><div class="item-name">本站总浏览量 :</div><div class="item-count" id="busuanzi_value_site_pv"><i class="fa-solid fa-spinner fa-spin"></i></div></div><div class="webinfo-item"><div class="item-name">最后更新时间 :</div><div class="item-count" id="last-push-date" data-lastPushDate="2025-09-15T07:50:30.750Z"><i class="fa-solid fa-spinner fa-spin"></i></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="/true"></script><div class="js-pjax"></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
