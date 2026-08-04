@@ -1,0 +1,511 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>容器运行时概述 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="容器运行时概述 本文简单讲解了容器运行时。  一、容器运行时的核心定义容器运行时是管理容器全生命周期（加载镜像、创建隔离环境、启动&#x2F;停止&#x2F;销毁容器、监控资源）的软件组件，核心目标是：  实现容器与宿主机的资源隔离（依赖内核能力或虚拟化技术）； 简化容器的部署与管理，确保兼容性（如遵循 OCI 规范）。  其本质是“运行容器的工具链”，按功能复杂度和隔离技术，可分为 低级运行时、">
+<meta property="og:type" content="article">
+<meta property="og:title" content="容器运行时概述">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000105/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="容器运行时概述 本文简单讲解了容器运行时。  一、容器运行时的核心定义容器运行时是管理容器全生命周期（加载镜像、创建隔离环境、启动&#x2F;停止&#x2F;销毁容器、监控资源）的软件组件，核心目标是：  实现容器与宿主机的资源隔离（依赖内核能力或虚拟化技术）； 简化容器的部署与管理，确保兼容性（如遵循 OCI 规范）。  其本质是“运行容器的工具链”，按功能复杂度和隔离技术，可分为 低级运行时、">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2025-08-29T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-04T07:09:58.511Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Container">
+<meta property="article:tag" content="Runtime">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "容器运行时概述",
+  "url": "http://zmty365.github.io/posts/1000105/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2025-08-29T04:00:00.000Z",
+  "dateModified": "2026-08-04T07:09:58.511Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000105/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '容器运行时概述',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">容器运行时概述</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">容器运行时概述</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2025-08-29T04:00:00.000Z" title="发表于 2025-08-29 12:00:00">2025-08-29</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AE%B9%E5%99%A8%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">容器底层实现</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">1.4k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>4分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="容器运行时概述"><a href="#容器运行时概述" class="headerlink" title="容器运行时概述"></a>容器运行时概述</h1><blockquote>
+<p>本文简单讲解了容器运行时。</p>
+</blockquote>
+<h3 id="一、容器运行时的核心定义"><a href="#一、容器运行时的核心定义" class="headerlink" title="一、容器运行时的核心定义"></a>一、容器运行时的核心定义</h3><p>容器运行时是<strong>管理容器全生命周期</strong>（加载镜像、创建隔离环境、启动&#x2F;停止&#x2F;销毁容器、监控资源）的软件组件，核心目标是：</p>
+<ol>
+<li>实现容器与宿主机的资源隔离（依赖内核能力或虚拟化技术）；</li>
+<li>简化容器的部署与管理，确保兼容性（如遵循 OCI 规范）。</li>
+</ol>
+<p>其本质是“运行容器的工具链”，按功能复杂度和隔离技术，可分为 <strong>低级运行时、高级运行时、沙盒&#x2F;虚拟化运行时</strong> 三类。</p>
+<h3 id="二、三类容器运行时的详细解析"><a href="#二、三类容器运行时的详细解析" class="headerlink" title="二、三类容器运行时的详细解析"></a>二、三类容器运行时的详细解析</h3><h4 id="1-低级运行时（Low-level-Runtime）"><a href="#1-低级运行时（Low-level-Runtime）" class="headerlink" title="1. 低级运行时（Low-level Runtime）"></a>1. 低级运行时（Low-level Runtime）</h4><ul>
+<li><strong>核心定位</strong>：遵循 OCI 运行时规范的“最小执行引擎”，仅负责<strong>将 rootfs + config.json 转换为隔离进程</strong>，不处理上层复杂逻辑。</li>
+<li><strong>核心能力</strong>（与你补充内容一致）：<ul>
+<li>依赖 Linux 内核的 <code>Namespace</code>（实现进程、网络、UTS 等隔离）和 <code>CGroup</code>（限制 CPU&#x2F;内存&#x2F;IO 资源）；</li>
+<li>加载 rootfs（需外部提供，自身不处理镜像），执行容器内初始化进程（如 <code>/bin/bash</code>）；</li>
+<li>不包含镜像管理、网络&#x2F;持久存储实现，需依赖外部工具（如 CNI 提供网络、CSI 提供存储）。</li>
+</ul>
+</li>
+<li><strong>特点</strong>：<ul>
+<li>优点：轻量、高性能、灵活（可被不同高级运行时调用）；</li>
+<li>缺点：功能单一，不认识“镜像”（无法拉取&#x2F;解压镜像），需手动准备 rootfs 和 config.json。</li>
+</ul>
+</li>
+<li><strong>主流工具</strong>：runc（OCI 参考实现）、crun（C 语言编写，启动更快）、runhcs（Windows 专属）。</li>
+</ul>
+<h4 id="2-高级运行时（High-level-Runtime）"><a href="#2-高级运行时（High-level-Runtime）" class="headerlink" title="2. 高级运行时（High-level Runtime）"></a>2. 高级运行时（High-level Runtime）</h4><ul>
+<li><strong>核心定位</strong>：基于低级运行时构建的“全功能管理中枢”，解决低级运行时的痛点（镜像处理、网络&#x2F;存储集成），并对外提供标准化接口（如 gRPC、CRI）。</li>
+<li><strong>核心能力</strong>（结合技术细节补充）：<ul>
+<li><strong>打通 OCI 镜像规范与运行时规范</strong>（核心要务）：<ol>
+<li>镜像处理：拉取镜像（从 Registry 获取 manifest）→ 校验&#x2F;存储镜像层（建立 layer sha256 索引，避免重复下载）→ 解压 layer 为文件系统层（fs layer）→ 用 <strong>UnionFS 写时复制（CopyOnWrite）</strong> 合并 fs layer 为 rootfs（外层 work 目录承接写操作，保护底层共享层）；</li>
+<li>生成 config.json：结合镜像元数据（如 ENV、CMD）和用户需求（如资源限制），生成符合 OCI 规范的配置文件。</li>
+</ol>
+</li>
+<li><strong>容器生命周期编排</strong>：调用低级运行时执行“启动&#x2F;停止&#x2F;删除”，并通过 <strong>container meta（元数据）</strong> 管理容器状态（存储容器 ID、image 信息、work layer 路径等，支持故障恢复）。</li>
+<li><strong>扩展能力集成</strong>：对接 CNI（容器网络，如创建虚拟网卡）、CSI（持久化存储，如挂载数据卷），以及日志收集、健康检查等。</li>
+</ul>
+</li>
+<li><strong>特点</strong>：<ul>
+<li>优点：功能全面，支持镜像全流程管理，可对接 Kubernetes 等编排工具；</li>
+<li>缺点：复杂度高，资源消耗比低级运行时略高。</li>
+</ul>
+</li>
+<li><strong>主流工具</strong>：Containerd（Docker 拆分，K8s 推荐）、CRI-O（专为 K8s 设计，轻量无冗余）、Docker Engine（一体化工具，内置高级+低级运行时）。</li>
+</ul>
+<h4 id="3-沙盒-虚拟化运行时（Sandboxed-Virtualized-Runtime）"><a href="#3-沙盒-虚拟化运行时（Sandboxed-Virtualized-Runtime）" class="headerlink" title="3. 沙盒&#x2F;虚拟化运行时（Sandboxed&#x2F;Virtualized Runtime）"></a>3. 沙盒&#x2F;虚拟化运行时（Sandboxed&#x2F;Virtualized Runtime）</h4><ul>
+<li><strong>核心定位</strong>：以“安全隔离”为核心目标，通过<strong>沙盒技术或轻量级虚拟化</strong>增强容器隔离性（突破传统 Namespace 隔离的局限性）。</li>
+<li><strong>核心能力</strong>：<ul>
+<li>隔离原理：不直接依赖宿主机内核的 Namespace，而是通过“中间层”隔离容器与宿主机：<ul>
+<li>沙盒型（如 gVisor）：用用户态程序模拟内核系统调用，拦截容器对宿主机内核的直接访问；</li>
+<li>虚拟化型（如 Kata Containers）：为每个容器分配一个轻量级虚拟机（VM），容器进程运行在 VM 内，实现硬件级隔离。</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>特点</strong>：<ul>
+<li>优点：隔离性极强（适合多租户场景或运行不可信镜像），安全性远高于传统运行时；</li>
+<li>缺点：性能开销高（虚拟化&#x2F;模拟系统调用会损耗性能），复杂度高。</li>
+</ul>
+</li>
+<li><strong>主流工具</strong>：gVisor（Google 开源，沙盒型）、Kata Containers（OCI 兼容，虚拟化型）、Firecracker（AWS 开源，轻量 VM 型）。</li>
+</ul>
+<h3 id="三、核心区别总结"><a href="#三、核心区别总结" class="headerlink" title="三、核心区别总结"></a>三、核心区别总结</h3><table>
+<thead>
+<tr>
+<th>维度</th>
+<th>低级运行时（如 runc）</th>
+<th>高级运行时（如 Containerd）</th>
+<th>沙盒&#x2F;虚拟化运行时（如 Kata）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>核心职责</strong></td>
+<td>底层隔离（Namespace&#x2F;CGroup）、启动隔离进程</td>
+<td>镜像管理、网络&#x2F;存储集成、生命周期编排、API 提供</td>
+<td>增强安全隔离（沙盒&#x2F;VM）、运行不可信镜像</td>
+</tr>
+<tr>
+<td><strong>OCI 规范支持</strong></td>
+<td>仅遵循 OCI 运行时规范（rootfs + config.json）</td>
+<td>遵循 OCI 镜像规范 + 运行时规范</td>
+<td>兼容 OCI 规范（可替换低级运行时）</td>
+</tr>
+<tr>
+<td><strong>依赖技术</strong></td>
+<td>Linux 内核（Namespace&#x2F;CGroup）</td>
+<td>低级运行时 + UnionFS + CNI&#x2F;CSI</td>
+<td>轻量 VM（Kata）或系统调用模拟（gVisor）</td>
+</tr>
+<tr>
+<td><strong>优点</strong></td>
+<td>轻量、高性能、灵活</td>
+<td>功能全、易集成、支持编排工具</td>
+<td>隔离性极强、安全性高</td>
+</tr>
+<tr>
+<td><strong>缺点</strong></td>
+<td>无镜像&#x2F;网络&#x2F;存储能力，需手动准备环境</td>
+<td>复杂度高、资源消耗略高</td>
+<td>性能开销大、配置复杂</td>
+</tr>
+<tr>
+<td><strong>典型场景</strong></td>
+<td>作为高级运行时的“执行组件”</td>
+<td>生产环境对接 K8s&#x2F;Docker，日常容器管理</td>
+<td>多租户场景、运行不可信镜像、高安全需求场景</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>在下一节，我们将了解尝试用runc这一低级运行时对容器做生命管理。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000105/">http://zmty365.github.io/posts/1000105/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a><a class="post-meta__tags" href="/tags/Runtime/">Runtime</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-07</div><div class="info-item-2">高级运行时——以 Containerd 和 CRI - O 为例</div></div><div class="info-2"><div class="info-item-1">高级运行时——以 Containerd 和 CRI - O 为例 本文难度系数较大，以containerd为例介绍了高级运行时最重要的功能，高级运行时向下和OCI规范、低级运行时相关，向上和镜像拉取、镜像存储相关，建议结合相关知识点食用，多做实验加深理解。  一、高级运行时回顾：高级运行时 vs 低级运行时首先，回顾一下两个关键概念：  低级运行时 (Low-Level Runtime)： 职责：直接与操作系统内核交互，负责最底层的操作，即创建和运行容器进程。它接收一个包含了 rootfs 路径和配置的 JSON 文件（OCI runtime-spec），然后调用 clone、unshare 等系统调用去启动一个具有正确隔离（namespace、cgroups）的进程。 代表：runc（是 OCI 标准的参考实现）、runhcs（用于 Windows）、crun、kata-runtime。   高级运行时 (High-Level Runtime)： 职责：管理容器的整个生命周期。包括镜像的传输、管理、解压、文件系统快照的维护，以及最终调用低级运行时会执行容器。它解决了“如何从镜像...</div></div></div></a><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-02</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000100/" title="Container"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-21</div><div class="info-item-2">Container</div></div><div class="info-2"><div class="info-item-1">容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  容器技术底层容器的实现依赖于 Linux 内核提供的两个核心功能：Namespace 和 Cgroup。这些技术共同支撑了容器的隔离性和资源管理机制，此外，UnionFS（联合文件系统） 是实现镜像轻量化的关键。 1. Namespace：实现“视图隔离”作用是为容器提供独立的“系统视图”，让容器内进程误以为自己在独立的操作系统中运行，实现资源隔离。常见的 Namespace 类型及功能如下：    命名空间类型 作用（隔离的资源） 典型场景    PID（进程 ID） 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） 隔离文件系统挂载点。不同命名空间的进程看到的挂载点（文件系统结构）可以不同。 容器拥有独立的根文件系统（如 / 目录与主...</div></div></div></a><a class="pagination-related" href="/posts/1000103/" title="Cgroups"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-24</div><div class="info-item-2">Cgroups</div></div><div class="info-2"><div class="info-item-1">Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。 cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是取消子系统拆分、采用统一目录结构，所有资源管控逻辑集中在 /sys/fs/cgroup 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。  cgroup简介什么是cgroupcgroup 是 “control group” 的缩写，并且首字母永远不大写。cgroup 是一种以 hierarchical (树形层级)方式组织进程...</div></div></div></a><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-27</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">容器运行时概述</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E6%A0%B8%E5%BF%83%E5%AE%9A%E4%B9%89"><span class="toc-number">1.1.</span> <span class="toc-text">一、容器运行时的核心定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E4%B8%89%E7%B1%BB%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E8%AF%A6%E7%BB%86%E8%A7%A3%E6%9E%90"><span class="toc-number">1.2.</span> <span class="toc-text">二、三类容器运行时的详细解析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E4%BD%8E%E7%BA%A7%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88Low-level-Runtime%EF%BC%89"><span class="toc-number">1.2.1.</span> <span class="toc-text">1. 低级运行时（Low-level Runtime）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E9%AB%98%E7%BA%A7%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88High-level-Runtime%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2. 高级运行时（High-level Runtime）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%B2%99%E7%9B%92-%E8%99%9A%E6%8B%9F%E5%8C%96%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88Sandboxed-Virtualized-Runtime%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">3. 沙盒&#x2F;虚拟化运行时（Sandboxed&#x2F;Virtualized Runtime）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%A0%B8%E5%BF%83%E5%8C%BA%E5%88%AB%E6%80%BB%E7%BB%93"><span class="toc-number">1.3.</span> <span class="toc-text">三、核心区别总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例">高级运行时——以 Containerd 和 CRI - O 为例</a><time datetime="2025-09-07T04:00:00.000Z" title="发表于 2025-09-07 12:00:00">2025-09-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000106/" title="低级运行时——以 runc 为例">低级运行时——以 runc 为例</a><time datetime="2025-09-02T04:00:00.000Z" title="发表于 2025-09-02 12:00:00">2025-09-02</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000105/" title="容器运行时概述">容器运行时概述</a><time datetime="2025-08-29T04:00:00.000Z" title="发表于 2025-08-29 12:00:00">2025-08-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '6081932749d86b6e427adc83b4f6bfb2'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
