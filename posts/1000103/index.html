@@ -1,0 +1,763 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Cgroups | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Cgroups">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000103/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2025-08-24T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-04T02:14:46.554Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Cgroup">
+<meta property="article:tag" content="Container">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Cgroups",
+  "url": "http://zmty365.github.io/posts/1000103/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2025-08-24T04:00:00.000Z",
+  "dateModified": "2026-08-04T02:14:46.554Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000103/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Cgroups',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">5</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Cgroups</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Cgroups</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AE%B9%E5%99%A8%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">容器底层实现</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">7.2k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>25分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Linux-控制组（Cgroups）"><a href="#Linux-控制组（Cgroups）" class="headerlink" title="Linux 控制组（Cgroups）"></a>Linux 控制组（Cgroups）</h1><blockquote>
+<p>在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。</p>
+</blockquote>
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><ul>
+<li><strong>cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。</strong></li>
+<li>cgroup分<a target="_blank" rel="noopener" href="https://link.segmentfault.com/?enc=dQBSkPOs2vgN6qui9keUBw==.B1/30EjYJh+wLI3LyoLkZJDeJ1iPScJOiryelsMtJqsAkOdyHIVv9qPtTBJuKbZ39gw+1qCso1S8wmhB53gFfA==">v1</a>和<a target="_blank" rel="noopener" href="https://link.segmentfault.com/?enc=HxXCA8SOm0uUO+UKn3V8pA==.rKOII1y8Y1VcPhe2H06qJLvb651ljkZuSkY/BA+lZc2g4LQcMj/qACzZZTauQWBWpu8HOLTIr3S3RQeMBgMQqw==">v2</a>两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。</li>
+<li>cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是<strong>取消子系统拆分、采用统一目录结构</strong>，所有资源管控逻辑集中在 <code>/sys/fs/cgroup</code> 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。</li>
+</ul>
+<h2 id="cgroup简介"><a href="#cgroup简介" class="headerlink" title="cgroup简介"></a>cgroup简介</h2><h2 id="什么是cgroup"><a href="#什么是cgroup" class="headerlink" title="什么是cgroup"></a>什么是cgroup</h2><p><code>cgroup</code> 是 “control group” 的缩写，并且首字母永远不大写。<code>cgroup</code> 是一种以 hierarchical (树形层级)方式组织进程的机制，以及在层级中以受控和可配置的方式分发系统资源。</p>
+<ul>
+<li>单数形式（cgroup）指这个特性，或用户 “cgroup controllers” 等术语中的修饰词</li>
+<li>复数形式（cgroups） 显式地指多个cgroup</li>
+</ul>
+<p>cgroup 是 Linux 内核的一个功能，用来限制、控制与分离一个进程组的资源（如CPU、内存、磁盘输入输出等）。它最早由Google的工程师（主要是Paul Menage和Rohit Seth）在2006年发起，最早名称为进程容器（process containers）。在2007年时，因为在Linux内核中，容器（container）这个名词有许多不同的意义，为避免混乱，被重新命名为cgroup，并且被合并到2.6.24版的内核中去。</p>
+<p>cgroups的一个设计目标是为不同的应用情况提供统一的接口，从控制单一进程（像nice）到作业系统层虚拟化（像OpenVZ，Linux-VServer，LXC）。cgroups 提供：</p>
+<ul>
+<li>资源限制：组可以被设置不超过设定的内存限制，包括虚拟内存。</li>
+<li>优先级：一些组可能会得到大量的CPU或磁盘IO吞吐量。</li>
+<li>结算：用来度量系统实际用了多少资源。</li>
+<li>控制：冻结组或检查点和重启动。</li>
+</ul>
+<p>cgroup 主要由两部分组成：</p>
+<ol>
+<li><code>核心（core）</code>：主要负责层级化地组织进程；</li>
+<li><code>控制器（controllers）</code>：大部分控制器负责cgroup层级中特定类型的系统资源分配，少部分utility控制器用于其他目的。</li>
+</ol>
+<h2 id="cgroup-v1-v2-对比"><a href="#cgroup-v1-v2-对比" class="headerlink" title="cgroup v1 v2 对比"></a>cgroup v1 v2 对比</h2><p>cgroup v1 支持多个 hierarchy，每个hierarchy可以启用任意数量的controller。这种方式看上去高度灵活，但实际中并不是很有用。</p>
+<p>因此最终的结果就是：</p>
+<ol>
+<li>用户空间最后<strong>管理着多个非常类似的 hierarchy</strong>，</li>
+<li>在执行 hierarchy 管理操作时，<strong>每个 hierarchy 上都重复着相同的操作</strong>。</li>
+</ol>
+<p><strong>v2 中对 cgroups 的最大更改是将重点放在简化层次结构上</strong></p>
+<ul>
+<li><p>v1 为每个控制器使用独立的树（例如 <code>/sys/fs/cgroup/cpu/GROUPNAME </code>和 <code>/sys/fs/cgroup/memory/GROUPNAME</code>）。</p>
+</li>
+<li><p>v2 将统一<code>/sys/fs/cgroup/GROUPNAME</code>中的树，如果进程 X 加入<code>/sys/fs/cgroup/test</code>，则启用 test 的每个控制器都将控制进程 X。</p>
+<table>
+<thead>
+<tr>
+<th>对比维度</th>
+<th>cgroup v1</th>
+<th>cgroup v2</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>目录结构</td>
+<td>按资源拆分（&#x2F;cpu、&#x2F;memory 等）</td>
+<td>统一层级（仅 &#x2F;sys&#x2F;fs&#x2F;cgroup 根目录）</td>
+</tr>
+<tr>
+<td>权限控制</td>
+<td>默认开启所有资源管控</td>
+<td>需通过 <code>cgroup.subtree_control</code> 显式开启</td>
+</tr>
+<tr>
+<td>配置文件</td>
+<td>按资源分散（cpu.cfs_quota_us、memory.limit_in_bytes）</td>
+<td>集中在同一目录（cpu.max、memory.max）</td>
+</tr>
+<tr>
+<td>资源冲突风险</td>
+<td>高（子系统层级独立）</td>
+<td>低（统一层级，规则绑定）</td>
+</tr>
+<tr>
+<td>容器工具支持</td>
+<td>旧版本默认（如 Docker &lt; 20.10）</td>
+<td>新版本默认（如 Docker ≥ 20.10、K8s ≥ 1.25）</td>
+</tr>
+<tr>
+<td>新特性支持</td>
+<td>无（如内存软限制、动态权重）</td>
+<td>支持（memory.high、cpu.weight 等）</td>
+</tr>
+</tbody></table>
+</li>
+</ul>
+<p>更多 v1 和 v2 差异见 <a target="_blank" rel="noopener" href="https://link.segmentfault.com/?enc=cj+8rv8ONYnOSM4E87K57Q==.gXHfMflJ2tlO5R/c0pZXcSmk6wDRX+yCbSJL8TMKbV9gPhhHRELkbuh30ae8hBF3V+FTenLBs2/JmK78zdymMhlOseQLZ4IqBXFjuXMlv/yDgtTYQEovDrWap/B0/JasS+dxH/zvbn6Q5OpSaKevaA=="><code>v1</code> 存在的问题及 <code>v2</code> 的设计考虑</a></p>
+<h2 id="cgroup-v2-详解"><a href="#cgroup-v2-详解" class="headerlink" title="cgroup v2 详解"></a>cgroup v2 详解</h2><ul>
+<li>cgroup v1 按资源类型拆分 <code>/sys/fs/cgroup/cpu</code>、<code>/sys/fs/cgroup/memory</code> 等子目录，而 cgroup v2 <strong>只有一个根目录 <code>/sys/fs/cgroup</code></strong>，所有资源的配置文件（如 CPU、内存、IO）都在同一个控制组目录中，无需跨目录管理。</li>
+<li>在启用 cgroup v2 的系统中，<code>/sys/fs/cgroup</code> 下默认包含基础配置文件，创建控制组（子目录）后，内核会自动生成对应资源的配置文件。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看当前系统能通过 cgroup 管哪些资源</span></span><br><span class="line"><span class="built_in">cat</span> cgroup.controllers</span><br></pre></td></tr></table></figure>
+
+<p>输出 <code>cpuset cpu io memory hugetlb pids rdma</code> 对应含义：</p>
+<table>
+<thead>
+<tr>
+<th>资源类型（控制器）</th>
+<th>作用说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>cpuset</code></td>
+<td>控制进程可使用的 CPU 核心、NUMA 内存节点（如“只允许用 CPU0 和 CPU1”）</td>
+</tr>
+<tr>
+<td><code>cpu</code></td>
+<td>管控 CPU 使用率（如“限制 50% 核心占用”）、CPU 权重（多进程竞争时的优先级）</td>
+</tr>
+<tr>
+<td><code>io</code></td>
+<td>限制进程的磁盘 I&#x2F;O 速率（如“读&#x2F;写速度不超过 100MB&#x2F;s”）</td>
+</tr>
+<tr>
+<td><code>memory</code></td>
+<td>管控内存使用（如“最大内存 1GB”“禁止用交换分区”）</td>
+</tr>
+<tr>
+<td><code>hugetlb</code></td>
+<td>管控大页内存（HugePage）的使用（针对需要大量内存的数据库、虚拟化场景）</td>
+</tr>
+<tr>
+<td><code>pids</code></td>
+<td>限制控制组内最多可创建的进程数（如“最多允许 100 个进程”）</td>
+</tr>
+<tr>
+<td><code>rdma</code></td>
+<td>管控 RDMA（远程直接内存访问）资源（针对高性能计算、分布式存储场景）</td>
+</tr>
+</tbody></table>
+<h3 id="开启-Cgroup-V2"><a href="#开启-Cgroup-V2" class="headerlink" title="开启 Cgroup V2"></a>开启 Cgroup V2</h3><h3 id="判断内核是否支持cgroup-v2"><a href="#判断内核是否支持cgroup-v2" class="headerlink" title="判断内核是否支持cgroup v2"></a>判断内核是否支持cgroup v2</h3><figure class="highlight shell"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">kevin@Kevin:/sys/fs/cgroup$ /proc/filesystems | grep cgroup</span><br><span class="line">nodev	cgroup</span><br><span class="line">nodev	cgroup2</span><br></pre></td></tr></table></figure>
+
+<p>出现了cgroup v2说明内核是支持的</p>
+<h4 id="版本检查"><a href="#版本检查" class="headerlink" title="版本检查"></a>版本检查</h4><p>通过下面这条命令来查看当前系统使用的 Cgroups V1 还是 V2</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">kevin@Kevin:/sys/fs/cgroup$ <span class="built_in">stat</span> -<span class="built_in">fc</span> %T /sys/fs/cgroup/</span><br><span class="line">cgroup2fs</span><br></pre></td></tr></table></figure>
+
+<p>如果输出是<code>cgroup2fs</code> 那就是 V2</p>
+<h4 id="启用-cgroup-v2"><a href="#启用-cgroup-v2" class="headerlink" title="启用 cgroup v2"></a>启用 cgroup v2</h4><p>如果当前系统未启用 Cgroup V2，也可以通过修改内核 cmdline 引导参数在你的 Linux 发行版上手动启用 cgroup v2。</p>
+<p>如果你的发行版使用 GRUB，则应在 <code>/etc/default/grub</code> 下的 <code>GRUB_CMDLINE_LINUX</code> 中添加 <code>systemd.unified_cgroup_hierarchy=1</code>， 然后执行 <code>sudo update-grub</code>。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">vim /etc/default/grub</span><br><span class="line">添加：GRUB_CMDLINE_LINUX_DEFAULT=<span class="string">&quot;systemd.unified_cgroup_hierarchy=yes&quot;</span></span><br><span class="line"><span class="built_in">sudo</span> grub-mkconfig -o /boot/grub/grub.cfg</span><br><span class="line">reboot </span><br></pre></td></tr></table></figure>
+
+<p><strong>最推荐的方法仍是使用一个默认已启用 cgroup v2 的发行版。</strong></p>
+<ul>
+<li>Ubuntu（推荐 22.04+）</li>
+</ul>
+<h3 id="基本操作逻辑：“建组→开权限→设规则→加进程”"><a href="#基本操作逻辑：“建组→开权限→设规则→加进程”" class="headerlink" title="基本操作逻辑：“建组→开权限→设规则→加进程”"></a>基本操作逻辑：“建组→开权限→设规则→加进程”</h3><p>cgroup v2 比 v1 多了“开启资源管控权限”的步骤（通过 <code>cgroup.subtree_control</code>），核心流程仍为四步，以“限制进程内存使用”为例：</p>
+<h4 id="步骤1：创建控制组（建目录）"><a href="#步骤1：创建控制组（建目录）" class="headerlink" title="步骤1：创建控制组（建目录）"></a>步骤1：创建控制组（建目录）</h4><p>在 <code>/sys/fs/cgroup</code> 下新建目录，内核自动生成全套资源配置文件：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> <span class="built_in">mkdir</span> /sys/fs/cgroup/demo-mem</span><br></pre></td></tr></table></figure>
+<p>执行后，<code>/sys/fs/cgroup/demo-mem</code> 目录下会出现 <code>memory.max</code>（内存上限）、<code>cgroup.procs</code>（进程列表）等所有资源的配置文件。</p>
+<h4 id="步骤2：开启资源管控权限"><a href="#步骤2：开启资源管控权限" class="headerlink" title="步骤2：开启资源管控权限"></a>步骤2：开启资源管控权限</h4><p>推荐切换到 root 用户再执行后续命令</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> su</span><br><span class="line"><span class="comment"># 注意：先不着急退出</span></span><br><span class="line"><span class="built_in">exit</span></span><br></pre></td></tr></table></figure>
+
+<p>cgroup v2 需先通过 <code>cgroup.subtree_control</code> 显式开启需要控制的资源（如内存、CPU），否则后续规则不生效：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看父cgroup已经开启的需要控制的资源</span></span><br><span class="line"><span class="built_in">cat</span> cgroup.subtree_control</span><br><span class="line"><span class="comment"># 示例输出：memory pids</span></span><br><span class="line"><span class="comment"># 开启cpu资源的管控权限（+cpu 表示启用，-cpu 表示禁用）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">echo</span> +cpu &gt; cgroup.subtree_control</span><br><span class="line"><span class="comment"># 进入控制组目录</span></span><br><span class="line"><span class="built_in">cd</span> /sys/fs/cgroup/demo-mem</span><br><span class="line"><span class="comment"># 查看已经开启的需要控制的资源</span></span><br><span class="line"><span class="built_in">cat</span> cgroup.subtree_control</span><br><span class="line"><span class="comment"># 一般是默认关闭所有的，输出为空</span></span><br><span class="line"><span class="comment"># 开启cpu资源和memory的管控权限（+cpu 表示启用，-cpu 表示禁用）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">echo</span> +memory +cpu &gt; cgroup.subtree_control</span><br></pre></td></tr></table></figure>
+<h4 id="步骤3：验证cpu"><a href="#步骤3：验证cpu" class="headerlink" title="步骤3：验证cpu"></a>步骤3：验证cpu</h4><ol>
+<li>运行一个死循环程序，让它占用 100% 的 CPU（方便测试限制效果）：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 启动死循环，&amp; 表示后台运行</span></span><br><span class="line"><span class="keyword">while</span> : ; <span class="keyword">do</span> : ; <span class="keyword">done</span> &amp;</span><br></pre></td></tr></table></figure>
+<p>运行后会显示类似 <code>[1] 3724</code> 的内容，其中 <code>3796</code> 是这个进程的 ID（PID），后面会用到。</p>
+<ol start="2">
+<li>用 <code>top</code> 或 <code>htop</code> 命令查看进程的 CPU 使用率：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">top  <span class="comment"># 运行后按键盘 &#x27;q&#x27; 退出</span></span><br><span class="line">3796 root      20   0    5148   1768   1120 R 100.0   0.0   0:31.63 bash</span><br></pre></td></tr></table></figure>
+<p>在列表中找到刚才的进程（COMMAND 列显示 <code>bash</code>），会看到 <code>%CPU</code> 接近 100%，说明它正在全速占用 CPU。</p>
+<ol start="3">
+<li>通过 <code>cpu.max</code> 文件设置 CPU 使用率限制：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置限制：20000 100000（含义见下方说明）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">echo</span> 20000 100000 &gt; cpu.max</span><br></pre></td></tr></table></figure>
+<ul>
+<li>含义：每 10000 微秒（10 毫秒）的时间里，这个控制组的进程最多只能用 2000 微秒（2 毫秒）的 CPU 时间，也就是限制在 20%（2000÷10000&#x3D;20%）。</li>
+</ul>
+<ol start="4">
+<li>让刚才的死循环进程受这个控制组管理：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 把进程 ID（比如 90482）写入 cgroup.procs 文件</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">echo</span> 3796 &gt; cgroup.procs</span><br></pre></td></tr></table></figure>
+<p>（注意：这里的 <code>3796</code> 要替换成你实际的进程 ID）</p>
+<blockquote>
+<p><strong>注意：上面的步骤很可能会失败</strong></p>
+<p>报错信息：write error: Device or resource busy</p>
+<p>出现 “Device or resource busy” 错误，通常是因为你要加入的进程（3724）已经属于另一个 cgroup 了，而 cgroup v2 中一个进程只能属于一个 cgroup（单归属原则）。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/3796/cgroup</span><br><span class="line"><span class="comment"># 0::/user.slice/user-0.slice/session-c3.scope</span></span><br></pre></td></tr></table></figure>
+
+<p>说明进程 3796 目前属于系统默认的 <code>user.slice</code> 相关的 cgroup 中（<code>/user.slice/user-0.slice/session-c3.scope</code>）。</p>
+<p>我们想把 3796 直接转到我们希望的cgroup中，但是还是失败了，报错依旧是write error: Device or resource busy。</p>
+<p><strong>原因是：原先的cgroup没有开启cpu限制。</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">cat</span> cpu.max</span><br><span class="line"><span class="built_in">cat</span>: cpu.max: No such file or directory</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">cat</span> cgroup.subtree_control</span><br><span class="line"><span class="comment"># 输出为空，我们去一层一层开启cpu</span></span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">cd</span> ../../</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice# <span class="built_in">cat</span> cgroup.subtree_control</span><br><span class="line">memory pids</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice# <span class="built_in">sudo</span> <span class="built_in">echo</span> +cpu &gt; cgroup.subtree_control</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice# <span class="built_in">cat</span> cgroup.subtree_control</span><br><span class="line">cpu memory pids</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice# <span class="built_in">cd</span> user-0.slice/</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice# <span class="built_in">cat</span> cgroup.subtree_control</span><br><span class="line">memory pids</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice# <span class="built_in">sudo</span> <span class="built_in">echo</span> +cpu &gt; cgroup.subtree_control</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice# <span class="built_in">cd</span> session-c3.scope/</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">sudo</span> <span class="built_in">echo</span> +cpu &gt; cgroup.subtree_control</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">cat</span> cpu.max</span><br><span class="line">max 100000</span><br></pre></td></tr></table></figure>
+
+<p>现在已经开启了cpu限制，再试试</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">sudo</span> <span class="built_in">echo</span> 3796 &gt; /sys/fs/cgroup/demo-mem/cgroup.procs</span><br><span class="line"><span class="built_in">echo</span>: write error: Device or resource busy</span><br></pre></td></tr></table></figure>
+
+<p>一样的错误，我们尝试改变session-c3.scope的cpu max：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">sudo</span> <span class="built_in">echo</span> <span class="string">&quot;50000 100000&quot;</span> &gt; cpu.max</span><br></pre></td></tr></table></figure>
+
+<p>先查下刚刚配置的50%cpu利用率是否有用：</p>
+<p><img src="/../img/posts/03Cgroups/00.png" alt="00"></p>
+<p>很好，启用了，那么现在再迁移一次试试！</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">sudo</span> <span class="built_in">echo</span> 3796 &gt; /sys/fs/cgroup/demo-mem/cgroup.procs</span><br><span class="line"><span class="built_in">echo</span>: write error: Device or resource busy</span><br></pre></td></tr></table></figure>
+
+<p>还是不行，根据<a target="_blank" rel="noopener" href="https://dev59.com/unix/EEbRa4cB1Zd3GeqPxiRO">cgroups内存限制-写入错误：设备或资源忙 centos memory swap - Dev59</a>老哥的回复，那么我们把session-c3.scope的cpu max调的低于20%试试：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">sudo</span> <span class="built_in">echo</span> <span class="string">&quot;10000 100000&quot;</span> &gt; cpu.max</span><br><span class="line">root@Kevin:/sys/fs/cgroup/user.slice/user-0.slice/session-c3.scope# <span class="built_in">sudo</span> <span class="built_in">echo</span> 3796 &gt; /sys/fs/cgroup/demo-mem/cgroup.procs</span><br><span class="line"><span class="built_in">echo</span>: write error: Device or resource busy</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p><strong>依旧不行，原因待查找。。。</strong></p>
+<p>但是这个实验只要验证了cgroup确实可以限制cpu使用</p>
+</blockquote>
+</blockquote>
+<ol start="5">
+<li>再次用 <code>top</code> 命令查看进程的 CPU 使用率：</li>
+</ol>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">top</span><br></pre></td></tr></table></figure>
+<p>此时会发现该进程的 <code>%CPU</code> 已经降到 20% 左右，说明限制生效了。</p>
+<h2 id="删除-cgroup-组"><a href="#删除-cgroup-组" class="headerlink" title="删除 cgroup 组"></a>删除 cgroup 组</h2><p>在 cgroup v2 中，<strong>无法直接用 <code>rm -rf</code> 删除控制组目录</strong>，核心原因是：控制组目录下的文件（如 <code>cgroup.procs</code>、<code>memory.max</code>）是内核动态生成的“虚拟文件”，并非真实磁盘文件，且删除控制组有严格的内核规则——必须先满足“无进程在组内+无子控制组”两个前提，再用 <code>rmdir</code>（而非 <code>rm -rf</code>）删除。</p>
+<h4 id="1-先清空控制组内的所有进程（关键！）"><a href="#1-先清空控制组内的所有进程（关键！）" class="headerlink" title="1. 先清空控制组内的所有进程（关键！）"></a>1. 先清空控制组内的所有进程（关键！）</h4><p>cgroup 目录下的 <code>cgroup.procs</code> 文件记录了所有关联的进程 PID，必须先将这些 PID 移到其他 cgroup（如根控制组），或直接终止进程。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 查看目标 cgroup 下的所有进程 PID</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cat</span> /sys/fs/cgroup/host-only-test-cgroup/cgroup.procs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 逐个将 PID 移到根控制组（/sys/fs/cgroup 是根组）</span></span><br><span class="line"><span class="comment"># 替换 &lt;PID&gt; 为上一步查到的实际进程号，若有多个则重复执行</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">echo</span> &lt;PID&gt; &gt; /sys/fs/cgroup/cgroup.procs</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 验证：确认目标 cgroup 的 cgroup.procs 已为空</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cat</span> /sys/fs/cgroup/host-only-test-cgroup/cgroup.procs</span><br></pre></td></tr></table></figure>
+<ul>
+<li>若进程无法移动（提示“Operation not permitted”），直接用 <code>sudo kill -9 &lt;PID&gt;</code> 终止进程即可。</li>
+</ul>
+<h4 id="2-删除目标-cgroup-的所有子控制组（若有）"><a href="#2-删除目标-cgroup-的所有子控制组（若有）" class="headerlink" title="2. 删除目标 cgroup 的所有子控制组（若有）"></a>2. 删除目标 cgroup 的所有子控制组（若有）</h4><p>如果 <code>host-only-test-cgroup</code> 下还有子目录（子控制组），必须先删除所有子目录，再删除父目录（cgroup 不允许“非空目录”删除）。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看目标 cgroup 下是否有子目录</span></span><br><span class="line"><span class="built_in">ls</span> /sys/fs/cgroup/host-only-test-cgroup/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 若有子目录（如 sub-cgroup），先清空子目录的进程，再删除子目录</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">rmdir</span> /sys/fs/cgroup/host-only-test-cgroup/sub-cgroup  <span class="comment"># 替换为实际子目录名</span></span><br></pre></td></tr></table></figure>
+
+
+<h4 id="3-用-rmdir-删除目标-cgroup-目录（只能用-rmdir！）"><a href="#3-用-rmdir-删除目标-cgroup-目录（只能用-rmdir！）" class="headerlink" title="3. 用 rmdir 删除目标 cgroup 目录（只能用 rmdir！）"></a>3. 用 <code>rmdir</code> 删除目标 cgroup 目录（只能用 rmdir！）</h4><p>cgroup 目录是“空目录”（无进程、无子组）后，必须用 <code>rmdir</code>（删除空目录的命令）删除，<strong>不能用 <code>rm -rf</code></strong>（会试图删除内核虚拟文件，导致权限错误）。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> <span class="built_in">rmdir</span> /sys/fs/cgroup/host-only-test-cgroup</span><br></pre></td></tr></table></figure>
+
+<p>执行后，目标 cgroup 目录会被正常删除，不会再提示“Operation not permitted”。</p>
+<h3 id="为什么-rm-rf-不行？"><a href="#为什么-rm-rf-不行？" class="headerlink" title="为什么 rm -rf 不行？"></a>为什么 <code>rm -rf</code> 不行？</h3><ul>
+<li>cgroup v2 的目录和文件是内核通过“虚拟文件系统”生成的，并非真实磁盘文件：<code>rm -rf</code> 会遍历目录下的所有文件（如 <code>cgroup.procs</code>、<code>memory.max</code>）并试图删除，但这些虚拟文件是内核维护的“只读&#x2F;只写接口”，<strong>内核不允许直接删除这些文件</strong>，因此会提示“权限不足”。</li>
+<li><code>rmdir</code> 是专门删除“空目录”的命令，只会向内核发送“删除控制组”的请求，内核会先检查“是否满足删除条件”（无进程、无子组），满足则直接回收该 cgroup 的资源，而非删除文件。</li>
+</ul>
+<h3 id="总结：cgroup-目录删除的核心规则"><a href="#总结：cgroup-目录删除的核心规则" class="headerlink" title="总结：cgroup 目录删除的核心规则"></a>总结：cgroup 目录删除的核心规则</h3><ol>
+<li><strong>先清进程</strong>：确保 <code>cgroup.procs</code> 为空；</li>
+<li><strong>再删子组</strong>：确保无任何子控制组；</li>
+<li><strong>用 rmdir</strong>：只能用 <code>rmdir</code> 删除空目录，禁用 <code>rm -rf</code>。</li>
+</ol>
+<h2 id="Cgroup原理部分"><a href="#Cgroup原理部分" class="headerlink" title="Cgroup原理部分"></a>Cgroup原理部分</h2><h3 id="cgroup-v2-层级化资源管理"><a href="#cgroup-v2-层级化资源管理" class="headerlink" title="cgroup v2 层级化资源管理"></a>cgroup v2 层级化资源管理</h3><h4 id="Top-down-Constraint（自顶向下约束）"><a href="#Top-down-Constraint（自顶向下约束）" class="headerlink" title="Top-down Constraint（自顶向下约束）"></a>Top-down Constraint（自顶向下约束）</h4><p>“Top-down（自顶向下）”是 cgroup v2 资源管理的核心逻辑，核心含义是：<strong>子 cgroup 的资源控制能力（即“控制器”的启用）完全依赖父 cgroup，父 cgroup 未开放的资源权限，子 cgroup 无法自主启用</strong>。  </p>
+<p>需要先明确一个关键概念：<strong>控制器（Controller）</strong><br>指 cgroup 中用于管理某类资源的功能模块（如 <code>cpu</code> 控制器管 CPU 资源、<code>memory</code> 控制器管内存资源），子 cgroup 要使用某类资源的控制功能，必须先让父 cgroup 把对应的控制器“下放”给自己。</p>
+<h5 id="规则1：子-cgroup-只能启用父-cgroup-已开放的控制器"><a href="#规则1：子-cgroup-只能启用父-cgroup-已开放的控制器" class="headerlink" title="规则1：子 cgroup 只能启用父 cgroup 已开放的控制器"></a>规则1：子 cgroup 只能启用父 cgroup 已开放的控制器</h5><p>cgroup 中通过 <code>cgroup.subtree_control</code> 文件控制“是否将某个控制器下放给子 cgroup”——父 cgroup 的该文件中包含哪些控制器，子 cgroup 的 <code>cgroup.subtree_control</code> 最多只能包含同样的控制器，不能多出来。  </p>
+<p>举个例子：  </p>
+<ul>
+<li>父 cgroup（如 <code>/sys/fs/cgroup/user.slice</code>）的 <code>cgroup.subtree_control</code> 中只有 <code>cpu memory</code>（表示父级只下放了 CPU 和内存控制器）；  </li>
+<li>它的子 cgroup（如 <code>/sys/fs/cgroup/user.slice/session-c3.scope</code>）的 <code>cgroup.subtree_control</code> 只能包含 <code>cpu</code>、<code>memory</code> 或两者都有，<strong>绝对不能出现 <code>io</code> 或 <code>pids</code> 这类父级没下放的控制器</strong>。</li>
+</ul>
+<p>为什么要这样？<br>本质是“权限收口”——父 cgroup 先划定自己能管理的资源范围，子 cgroup 只能在这个范围内进一步细分资源，避免子 cgroup 擅自使用父级未授权的资源控制能力，导致整个 cgroup 层级的资源管理混乱。</p>
+<h5 id="规则2：父-cgroup-无法禁用“子-cgroup仍在使用”的控制器"><a href="#规则2：父-cgroup-无法禁用“子-cgroup仍在使用”的控制器" class="headerlink" title="规则2：父 cgroup 无法禁用“子 cgroup仍在使用”的控制器"></a>规则2：父 cgroup 无法禁用“子 cgroup仍在使用”的控制器</h5><p>当父 cgroup 把某个控制器（如 <code>cpu</code>）下放给子 cgroup 后，只要有任何一个子 cgroup <strong>正在使用该控制器</strong>（比如子 cgroup 配置了 <code>cpu.max</code>、或有进程在该控制器下运行），父 cgroup 就不能从自己的 <code>cgroup.subtree_control</code> 中删除这个控制器（即无法“收回”权限）。  </p>
+<p>举个例子：  </p>
+<ul>
+<li>父 cgroup 下放了 <code>cpu</code> 控制器给子 cgroup A，子 cgroup A 已配置 <code>cpu.max=2000 10000</code>（正在用 CPU 控制功能）；  </li>
+<li>此时父 cgroup 执行 <code>echo -cpu &gt; cgroup.subtree_control</code>（试图收回 CPU 控制器）会失败，内核会返回“资源忙”错误。</li>
+</ul>
+<p>为什么要这样？<br>防止父级“强制收回权限”导致子 cgroup 的资源控制失效——如果子 cgroup 正在依赖某个控制器限制资源（如用 <code>cpu.max</code> 控制进程 CPU 占用），父级突然禁用该控制器，会导致子 cgroup 的限制规则失效，进程可能瞬间占用过量资源，引发系统不稳定。</p>
+<h4 id="No-Internal-Process（无内部进程）"><a href="#No-Internal-Process（无内部进程）" class="headerlink" title="No Internal Process（无内部进程）"></a>No Internal Process（无内部进程）</h4><p>这条规则针对“非根 cgroup（non-root cgroup）”，核心含义是：<strong>只有当一个非根 cgroup 中没有任何进程（即 <code>cgroup.procs</code> 文件为空）时，它才能将自己的“域控制器（Domain Controller）”下放给子 cgroup；如果该 cgroup 有进程，就不能再向下分发资源控制权限</strong>。  </p>
+<p>先拆解关键概念：  </p>
+<ul>
+<li><strong>非根 cgroup（non-root cgroup）</strong>：除了 <code>/sys/fs/cgroup</code>（根 cgroup）之外的所有 cgroup（如 <code>user.slice</code>、<code>session-c3.scope</code>）；  </li>
+<li><strong>域控制器（Domain Controller）</strong>：指用于“向下分发资源”的控制器（区别于“仅自身使用”的控制器），当一个 cgroup 要把控制器下放给子 cgroup 时，这个控制器对它而言就是“域控制器”，需要写在 <code>cgroup.subtree_control</code> 中。</li>
+</ul>
+<h5 id="规则核心：“有进程的-cgroup-不能当‘资源分发者’”"><a href="#规则核心：“有进程的-cgroup-不能当‘资源分发者’”" class="headerlink" title="规则核心：“有进程的 cgroup 不能当‘资源分发者’”"></a>规则核心：“有进程的 cgroup 不能当‘资源分发者’”</h5><p>简单说：一个非根 cgroup 只能二选一——要么自己“装进程”（管理进程的资源使用），要么当“资源分发者”（把控制器下放给子 cgroup，让子 cgroup 管理进程），不能两者都做。  </p>
+<p>举个例子：  </p>
+<ol>
+<li>若 cgroup A（非根）的 <code>cgroup.procs</code> 文件中有进程 PID（比如 3796），此时它的 <code>cgroup.subtree_control</code> 无法添加任何控制器（比如想加 <code>cpu</code> 给子 cgroup B，执行 <code>echo +cpu &gt; cgroup.subtree_control</code> 会失败）；  </li>
+<li>只有先把 cgroup A 中的所有进程移走（<code>cgroup.procs</code> 为空），才能修改 <code>cgroup.subtree_control</code>，将 <code>cpu</code> 等控制器下放给子 cgroup B；  </li>
+<li>子 cgroup B 拿到控制器后，就可以在自己的 <code>cgroup.procs</code> 中添加进程，用父级下放的控制器管理进程资源。</li>
+</ol>
+<h5 id="为什么要这样？避免“父子进程资源竞争”"><a href="#为什么要这样？避免“父子进程资源竞争”" class="headerlink" title="为什么要这样？避免“父子进程资源竞争”"></a>为什么要这样？避免“父子进程资源竞争”</h5><p>这条规则的核心目的是让 cgroup 层级形成“清晰的分工”：  </p>
+<ul>
+<li><strong>叶子节点 cgroup</strong>：只有叶子节点（层级最末端、没有子 cgroup 的 cgroup）才能有进程，负责直接管理进程的资源使用；  </li>
+<li><strong>非叶子节点 cgroup</strong>：只能做“资源分发者”，负责把父级下放的控制器进一步分给子 cgroup，自己不装进程。</li>
+</ul>
+<p>这样能彻底避免“父 cgroup 内的进程与子 cgroup 内的进程竞争资源”的问题——比如若父 cgroup A 自己有进程，又给子 cgroup B 下放了 CPU 控制器，父进程和子进程会同时竞争父 cgroup A 的 CPU 资源，导致资源分配逻辑混乱；而规则强制“非叶子节点无进程”，所有进程都在叶子节点，资源分配只需在“父→子”的分发链路中处理，控制器扫描资源使用时更高效、无冲突。</p>
+<h5 id="例外：根-cgroup（root）不受此限制"><a href="#例外：根-cgroup（root）不受此限制" class="headerlink" title="例外：根 cgroup（root）不受此限制"></a>例外：根 cgroup（root）不受此限制</h5><p>根 cgroup（<code>/sys/fs/cgroup</code>）可以同时满足两个条件：  </p>
+<ol>
+<li>自己的 <code>cgroup.procs</code> 中可以有进程（比如系统初始化时的一些基础进程，或未被分配到其他 cgroup 的“无归属”进程）；  </li>
+<li>可以自由修改 <code>cgroup.subtree_control</code>，将控制器下放给子 cgroup（如 <code>user.slice</code>）。</li>
+</ol>
+<p>这是因为根 cgroup 是整个 cgroup 层级的“起点”，需要承担“初始化资源分发”和“兜底管理无归属进程”的双重责任，所以内核对其放宽了限制。</p>
+<h3 id="cgroup-资源分配模型"><a href="#cgroup-资源分配模型" class="headerlink" title="cgroup 资源分配模型"></a>cgroup 资源分配模型</h3><p>cgroup（Control Groups）作为 Linux 内核的资源管理机制，通过四种核心资源分配模型实现对 CPU、内存、IO 等系统资源的精细化管控。各模型基于不同的资源调度逻辑，适用于差异化的资源管理场景，其核心特征、调度机制及适用范围如下：</p>
+<h4 id="1-Weights（权重分配模型）"><a href="#1-Weights（权重分配模型）" class="headerlink" title="1. Weights（权重分配模型）"></a>1. Weights（权重分配模型）</h4><p>权重模型是一种<strong>比例化动态资源调度机制</strong>，通过为子 cgroup 配置权重值（<code>weight</code>），在父 cgroup 范围内，仅对“活跃子 cgroup”（即存在资源需求的子 cgroup）按权重比例分配资源，闲置资源自动向需求方转移，实现资源的“工作守恒”（work-conserving）。</p>
+<ul>
+<li><strong>活跃性判定</strong>：仅当子 cgroup 存在未满足的资源需求（如 CPU 就绪队列非空、IO 请求待处理）时，才被判定为“活跃”，参与权重比例计算；非活跃子 cgroup 不占用资源分配额度。</li>
+<li><strong>比例计算逻辑</strong>：设父 cgroup 下所有活跃子 cgroup 的权重总和为 ( \sum W_i )，第 ( i ) 个子 cgroup 的权重为 ( W_i )，则其资源分配占比为 ( r_i &#x3D; W_i &#x2F; \sum W_i )，父 cgroup 的总可用资源按该比例分配至各活跃子 cgroup。</li>
+<li><strong>权重范围</strong>：通常取值为 [1, 10000]，默认值 100，支持细粒度的权重调整（如通过 100:200 的权重比实现 1:2 的资源分配）。</li>
+</ul>
+<p>适用于<strong>无状态、资源需求动态变化</strong>的资源类型（如 CPU 时间片、网络带宽），典型场景包括多租户应用的 CPU 共享、非实时服务的资源动态调度，核心目标是最大化资源利用率。</p>
+<p>CPU 控制器的 <code>cpu.weight</code>（cgroup v2）或 <code>cpu.shares</code>（cgroup v1），通过权重比例在活跃进程间分配 CPU 周期，避免资源闲置。</p>
+<h4 id="2-Limits（限制分配模型）"><a href="#2-Limits（限制分配模型）" class="headerlink" title="2. Limits（限制分配模型）"></a>2. Limits（限制分配模型）</h4><p>限制模型是一种<strong>静态资源上限约束机制</strong>，通过为子 cgroup 配置资源使用的“硬上限”（limit），限定子 cgroup 可消耗的最大资源量；允许“资源超分”（over-commitment），即所有子 cgroup 的限制值总和可大于父 cgroup 的总可用资源，配置合法性不受资源总量约束。</p>
+<ul>
+<li><strong>上限约束逻辑</strong>：子 cgroup 对目标资源的实际消耗不得超过配置的限制值，一旦达到上限，资源请求将被阻塞或限流（如 IO 请求排队、CPU 调度延迟）。</li>
+<li><strong>超分特性</strong>：父 cgroup 不校验所有子 cgroup 限制值的总和与自身总资源的匹配关系，仅通过运行时调度确保单个子 cgroup 不超上限；当多子 cgroup 同时触达上限时，父 cgroup 按默认策略（如 FIFO、权重）调度剩余资源。</li>
+<li><strong>限制范围</strong>：取值为 [0, Max]，其中 0 表示“禁止使用资源”，Max 表示“无限制”（默认值），支持按资源类型的最小粒度配置（如 IO 按 BPS&#x2F;IOPS 限制、内存按字节限制）。</li>
+</ul>
+<p>适用于<strong>需控制单个子 cgroup 资源占用峰值</strong>的场景（如限制非核心应用的 IO 带宽、避免单个进程耗尽内存），核心目标是防止资源滥用，保障系统整体稳定性。</p>
+<p>IO 控制器的 <code>io.max</code>（限制 IO 设备的最大 BPS&#x2F;IOPS）、内存控制器的 <code>memory.max</code>（限制内存使用上限）。</p>
+<h4 id="3-Protections（保护分配模型）"><a href="#3-Protections（保护分配模型）" class="headerlink" title="3. Protections（保护分配模型）"></a>3. Protections（保护分配模型）</h4><p>保护模型是一种<strong>层级化资源保障机制</strong>，通过为子 cgroup 配置“资源保护阈值”（protection threshold），在父 cgroup 及所有祖先 cgroup 均未突破自身保护阈值的前提下，确保子 cgroup 获得不低于阈值的资源量；支持资源超分，保护阈值总和可大于父 cgroup 总资源，保障力度为“最佳努力”（best-effort）。</p>
+<ul>
+<li><strong>层级保护逻辑</strong>：资源保护具有“自上而下”的层级依赖性——仅当子 cgroup 的所有祖先 cgroup 的实际资源消耗均低于其自身的保护阈值时，子 cgroup 的保护阈值才生效，系统优先满足其子 cgroup 的资源需求（如内存回收时优先回收未达保护阈值的进程）。</li>
+<li><strong>超分处理</strong>：当所有子 cgroup 的保护阈值总和超过父 cgroup 总资源时，父 cgroup 按保护阈值比例在子 cgroup 间分配可保护资源，即子 cgroup 实际获得的保护资源为“自身阈值 ×（父可用资源 &#x2F; 子阈值总和）”。</li>
+<li><strong>保护范围</strong>：取值为 [0, Max]，默认值 0（无保护），支持按资源类型配置（如内存保护、CPU 带宽保护）。</li>
+</ul>
+<p>适用于<strong>需优先保障关键业务资源需求</strong>的场景（如数据库的内存保护、核心服务的 CPU 带宽保障），核心目标是在资源紧张时，优先确保关键子 cgroup 的资源供给。</p>
+<p>内存控制器的 <code>memory.low</code>（cgroup v2），确保子 cgroup 在内存回收时，优先保留不低于 <code>memory.low</code> 的内存量；CPU 控制器的 <code>cpu.min</code>（cgroup v2），保障子 cgroup 获得最低 CPU 带宽。</p>
+<h4 id="4-Allocations（专属分配模型）"><a href="#4-Allocations（专属分配模型）" class="headerlink" title="4. Allocations（专属分配模型）"></a>4. Allocations（专属分配模型）</h4><p>专属分配模型是一种<strong>静态资源独占机制</strong>，通过为子 cgroup 配置“专属资源额度”（allocation），实现资源的排他性占用；严格禁止“资源超分”，即所有子 cgroup 的专属额度总和不得超过父 cgroup 的总可用资源，否则配置无效（内核拒绝执行）。</p>
+<ul>
+<li><strong>独占性约束</strong>：子 cgroup 配置的专属资源额度为“排他性预留资源”，仅该子 cgroup 可使用，父 cgroup 及其他子 cgroup 不得占用；若子 cgroup 未用完专属额度，闲置部分也无法被其他子 cgroup 利用（非 work-conserving）。</li>
+<li><strong>超分校验</strong>：父 cgroup 在接收子 cgroup 的专属额度配置时，会实时校验“已分配额度 + 新配置额度”是否超过自身总可用资源，若超过则返回错误（如 <code>EBUSY</code>），拒绝配置生效。</li>
+<li><strong>分配范围</strong>：取值为 [0, Max]，默认值 0（无专属资源），仅支持对“可量化、可独占”的资源类型配置（如实时 CPU 时间片、硬件设备配额）。</li>
+</ul>
+<p>适用于<strong>实时任务（RT）或硬件绑定型应用</strong>（如工业控制、音频&#x2F;视频实时处理、硬件加速卡调度），核心目标是通过资源独占保障任务的确定性执行（如实时任务的 deadlines 满足）。</p>
+<p>CPU 实时控制器的 <code>cpu.rt.max</code>（cgroup v2），为子 cgroup 分配专属的实时 CPU 时间片（如 50ms&#x2F;100ms 周期），确保实时任务不被非实时任务抢占；IO 控制器的 <code>io.allocation</code>（部分内核版本支持），为子 cgroup 分配专属的存储设备 IO 配额。</p>
+<table>
+<thead>
+<tr>
+<th>对比维度</th>
+<th>Weights（权重）</th>
+<th>Limits（限制）</th>
+<th>Protections（保护）</th>
+<th>Allocations（专属）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>资源调度逻辑</td>
+<td>动态比例分配（work-conserving）</td>
+<td>静态上限约束（over-commit 允许）</td>
+<td>层级化最佳努力保障（over-commit 允许）</td>
+<td>静态独占预留（over-commit 禁止）</td>
+</tr>
+<tr>
+<td>配置合法性</td>
+<td>无总量约束，配置恒合法</td>
+<td>无总量约束，配置恒合法</td>
+<td>无总量约束，配置恒合法</td>
+<td>总量约束（子总和 ≤ 父总量），超分则无效</td>
+</tr>
+<tr>
+<td>资源闲置处理</td>
+<td>闲置资源自动转移至活跃子</td>
+<td>闲置资源可被其他子使用</td>
+<td>闲置资源可被其他子使用</td>
+<td>闲置资源不可转移，独占保留</td>
+</tr>
+<tr>
+<td>适用资源类型</td>
+<td>无状态资源（CPU、网络）</td>
+<td>所有可量化资源（IO、内存、CPU）</td>
+<td>需优先保障的资源（内存、CPU）</td>
+<td>可独占资源（实时 CPU、硬件设备）</td>
+</tr>
+<tr>
+<td>核心目标</td>
+<td>最大化资源利用率</td>
+<td>防止资源滥用</td>
+<td>保障关键业务资源需求</td>
+<td>确保任务确定性执行</td>
+</tr>
+</tbody></table>
+<h3 id="进程-线程与-cgroup-关系"><a href="#进程-线程与-cgroup-关系" class="headerlink" title="进程&#x2F;线程与 cgroup 关系"></a>进程&#x2F;线程与 cgroup 关系</h3><p>所有cgroup组成一个树形结构。</p>
+<ul>
+<li>系统中的每个进程都属于且只属于某一个cgroup；</li>
+<li>一个进程的所有线程属于同一个cgroup；</li>
+<li>创建子进程时，继承其父进程的cgroup；</li>
+<li>一个进程可以迁移到其他cgroup；</li>
+<li>迁移一个进程时，子进程（后台进程）不会自动跟着一起迁移；</li>
+</ul>
+<h3 id="cgroup-namespace控件（cgroupns）"><a href="#cgroup-namespace控件（cgroupns）" class="headerlink" title="cgroup namespace控件（cgroupns）"></a>cgroup namespace控件（cgroupns）</h3><p>容器环境中用cgroup和其他一些namespace来隔离进程，但是<code>/proc/$PID/cgroup</code> 文件可能会泄露潜在的系统层信息。例如：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cat</span> /proc/self/cgroup</span><br><span class="line">0::/batchjobs/container_id1 <span class="comment"># &lt;-- cgroup 的绝对路径，属于系统层信息，不希望暴露给隔离的进程</span></span><br></pre></td></tr></table></figure>
+
+<p>因此引入了cgroup namespace。</p>
+<blockquote>
+<p>在下一小节，我们将用C语言实现简易容器。</p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000103/">http://zmty365.github.io/posts/1000103/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a><a class="post-meta__tags" href="/tags/Cgroup/">Cgroup</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000102/" title="Namespace"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Namespace</div></div><div class="info-2"><div class="info-item-1">Linux 命名空间 在本小节，我们将了解容器的底层原理之一——Namespace，通过动手实践逐步搭建一个隔离的环境。  命名空间概述命名空间是一项 Linux 内核功能，于 2002 年随 Linux 2.4.19 引入。命名空间背后的想法是将特定的全局系统资源包装在抽象层中。内核命名空间抽象，允许不同的进程组具有不同的系统视图。这使得命名空间内的进程看起来拥有自己的全局资源的隔离实例。 从 Linux 内核 5.6 开始，共有 8 种命名空间，每种负责隔离一种特定的系统资源。下表详细说明：    命名空间类型 对应的 clone() 标志 对应的 unshare 选项 作用（隔离的资源） 典型场景    PID（进程 ID） CLONE_NEWPID -p 或 --pid 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） CLONE_NEWNS -m 或 --mount 隔离文件...</div></div></div></a><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000102/" title="Namespace"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">Namespace</div></div><div class="info-2"><div class="info-item-1">Linux 命名空间 在本小节，我们将了解容器的底层原理之一——Namespace，通过动手实践逐步搭建一个隔离的环境。  命名空间概述命名空间是一项 Linux 内核功能，于 2002 年随 Linux 2.4.19 引入。命名空间背后的想法是将特定的全局系统资源包装在抽象层中。内核命名空间抽象，允许不同的进程组具有不同的系统视图。这使得命名空间内的进程看起来拥有自己的全局资源的隔离实例。 从 Linux 内核 5.6 开始，共有 8 种命名空间，每种负责隔离一种特定的系统资源。下表详细说明：    命名空间类型 对应的 clone() 标志 对应的 unshare 选项 作用（隔离的资源） 典型场景    PID（进程 ID） CLONE_NEWPID -p 或 --pid 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） CLONE_NEWNS -m 或 --mount 隔离文件...</div></div></div></a><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000100/" title="Container"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-21</div><div class="info-item-2">Container</div></div><div class="info-2"><div class="info-item-1">容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  容器技术底层容器的实现依赖于 Linux 内核提供的两个核心功能：Namespace 和 Cgroup。这些技术共同支撑了容器的隔离性和资源管理机制，此外，UnionFS（联合文件系统） 是实现镜像轻量化的关键。 1. Namespace：实现“视图隔离”作用是为容器提供独立的“系统视图”，让容器内进程误以为自己在独立的操作系统中运行，实现资源隔离。常见的 Namespace 类型及功能如下：    命名空间类型 作用（隔离的资源） 典型场景    PID（进程 ID） 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） 隔离文件系统挂载点。不同命名空间的进程看到的挂载点（文件系统结构）可以不同。 容器拥有独立的根文件系统（如 / 目录与主...</div></div></div></a><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-27</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">5</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Linux-%E6%8E%A7%E5%88%B6%E7%BB%84%EF%BC%88Cgroups%EF%BC%89"><span class="toc-number">1.</span> <span class="toc-text">Linux 控制组（Cgroups）</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%83%8C%E6%99%AF"><span class="toc-number">1.1.</span> <span class="toc-text">背景</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#cgroup%E7%AE%80%E4%BB%8B"><span class="toc-number">1.2.</span> <span class="toc-text">cgroup简介</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BB%80%E4%B9%88%E6%98%AFcgroup"><span class="toc-number">1.3.</span> <span class="toc-text">什么是cgroup</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#cgroup-v1-v2-%E5%AF%B9%E6%AF%94"><span class="toc-number">1.4.</span> <span class="toc-text">cgroup v1 v2 对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#cgroup-v2-%E8%AF%A6%E8%A7%A3"><span class="toc-number">1.5.</span> <span class="toc-text">cgroup v2 详解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%BC%80%E5%90%AF-Cgroup-V2"><span class="toc-number">1.5.1.</span> <span class="toc-text">开启 Cgroup V2</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%A4%E6%96%AD%E5%86%85%E6%A0%B8%E6%98%AF%E5%90%A6%E6%94%AF%E6%8C%81cgroup-v2"><span class="toc-number">1.5.2.</span> <span class="toc-text">判断内核是否支持cgroup v2</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%89%88%E6%9C%AC%E6%A3%80%E6%9F%A5"><span class="toc-number">1.5.2.1.</span> <span class="toc-text">版本检查</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%90%AF%E7%94%A8-cgroup-v2"><span class="toc-number">1.5.2.2.</span> <span class="toc-text">启用 cgroup v2</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9F%BA%E6%9C%AC%E6%93%8D%E4%BD%9C%E9%80%BB%E8%BE%91%EF%BC%9A%E2%80%9C%E5%BB%BA%E7%BB%84%E2%86%92%E5%BC%80%E6%9D%83%E9%99%90%E2%86%92%E8%AE%BE%E8%A7%84%E5%88%99%E2%86%92%E5%8A%A0%E8%BF%9B%E7%A8%8B%E2%80%9D"><span class="toc-number">1.5.3.</span> <span class="toc-text">基本操作逻辑：“建组→开权限→设规则→加进程”</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A41%EF%BC%9A%E5%88%9B%E5%BB%BA%E6%8E%A7%E5%88%B6%E7%BB%84%EF%BC%88%E5%BB%BA%E7%9B%AE%E5%BD%95%EF%BC%89"><span class="toc-number">1.5.3.1.</span> <span class="toc-text">步骤1：创建控制组（建目录）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A42%EF%BC%9A%E5%BC%80%E5%90%AF%E8%B5%84%E6%BA%90%E7%AE%A1%E6%8E%A7%E6%9D%83%E9%99%90"><span class="toc-number">1.5.3.2.</span> <span class="toc-text">步骤2：开启资源管控权限</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A43%EF%BC%9A%E9%AA%8C%E8%AF%81cpu"><span class="toc-number">1.5.3.3.</span> <span class="toc-text">步骤3：验证cpu</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%A0%E9%99%A4-cgroup-%E7%BB%84"><span class="toc-number">1.6.</span> <span class="toc-text">删除 cgroup 组</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E5%85%88%E6%B8%85%E7%A9%BA%E6%8E%A7%E5%88%B6%E7%BB%84%E5%86%85%E7%9A%84%E6%89%80%E6%9C%89%E8%BF%9B%E7%A8%8B%EF%BC%88%E5%85%B3%E9%94%AE%EF%BC%81%EF%BC%89"><span class="toc-number">1.6.1.</span> <span class="toc-text">1. 先清空控制组内的所有进程（关键！）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E5%88%A0%E9%99%A4%E7%9B%AE%E6%A0%87-cgroup-%E7%9A%84%E6%89%80%E6%9C%89%E5%AD%90%E6%8E%A7%E5%88%B6%E7%BB%84%EF%BC%88%E8%8B%A5%E6%9C%89%EF%BC%89"><span class="toc-number">1.6.2.</span> <span class="toc-text">2. 删除目标 cgroup 的所有子控制组（若有）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E7%94%A8-rmdir-%E5%88%A0%E9%99%A4%E7%9B%AE%E6%A0%87-cgroup-%E7%9B%AE%E5%BD%95%EF%BC%88%E5%8F%AA%E8%83%BD%E7%94%A8-rmdir%EF%BC%81%EF%BC%89"><span class="toc-number">1.6.3.</span> <span class="toc-text">3. 用 rmdir 删除目标 cgroup 目录（只能用 rmdir！）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88-rm-rf-%E4%B8%8D%E8%A1%8C%EF%BC%9F"><span class="toc-number">1.6.4.</span> <span class="toc-text">为什么 rm -rf 不行？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9Acgroup-%E7%9B%AE%E5%BD%95%E5%88%A0%E9%99%A4%E7%9A%84%E6%A0%B8%E5%BF%83%E8%A7%84%E5%88%99"><span class="toc-number">1.6.5.</span> <span class="toc-text">总结：cgroup 目录删除的核心规则</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Cgroup%E5%8E%9F%E7%90%86%E9%83%A8%E5%88%86"><span class="toc-number">1.7.</span> <span class="toc-text">Cgroup原理部分</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#cgroup-v2-%E5%B1%82%E7%BA%A7%E5%8C%96%E8%B5%84%E6%BA%90%E7%AE%A1%E7%90%86"><span class="toc-number">1.7.1.</span> <span class="toc-text">cgroup v2 层级化资源管理</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Top-down-Constraint%EF%BC%88%E8%87%AA%E9%A1%B6%E5%90%91%E4%B8%8B%E7%BA%A6%E6%9D%9F%EF%BC%89"><span class="toc-number">1.7.1.1.</span> <span class="toc-text">Top-down Constraint（自顶向下约束）</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%84%E5%88%991%EF%BC%9A%E5%AD%90-cgroup-%E5%8F%AA%E8%83%BD%E5%90%AF%E7%94%A8%E7%88%B6-cgroup-%E5%B7%B2%E5%BC%80%E6%94%BE%E7%9A%84%E6%8E%A7%E5%88%B6%E5%99%A8"><span class="toc-number">1.7.1.1.1.</span> <span class="toc-text">规则1：子 cgroup 只能启用父 cgroup 已开放的控制器</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%84%E5%88%992%EF%BC%9A%E7%88%B6-cgroup-%E6%97%A0%E6%B3%95%E7%A6%81%E7%94%A8%E2%80%9C%E5%AD%90-cgroup%E4%BB%8D%E5%9C%A8%E4%BD%BF%E7%94%A8%E2%80%9D%E7%9A%84%E6%8E%A7%E5%88%B6%E5%99%A8"><span class="toc-number">1.7.1.1.2.</span> <span class="toc-text">规则2：父 cgroup 无法禁用“子 cgroup仍在使用”的控制器</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#No-Internal-Process%EF%BC%88%E6%97%A0%E5%86%85%E9%83%A8%E8%BF%9B%E7%A8%8B%EF%BC%89"><span class="toc-number">1.7.1.2.</span> <span class="toc-text">No Internal Process（无内部进程）</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E8%A7%84%E5%88%99%E6%A0%B8%E5%BF%83%EF%BC%9A%E2%80%9C%E6%9C%89%E8%BF%9B%E7%A8%8B%E7%9A%84-cgroup-%E4%B8%8D%E8%83%BD%E5%BD%93%E2%80%98%E8%B5%84%E6%BA%90%E5%88%86%E5%8F%91%E8%80%85%E2%80%99%E2%80%9D"><span class="toc-number">1.7.1.2.1.</span> <span class="toc-text">规则核心：“有进程的 cgroup 不能当‘资源分发者’”</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E8%BF%99%E6%A0%B7%EF%BC%9F%E9%81%BF%E5%85%8D%E2%80%9C%E7%88%B6%E5%AD%90%E8%BF%9B%E7%A8%8B%E8%B5%84%E6%BA%90%E7%AB%9E%E4%BA%89%E2%80%9D"><span class="toc-number">1.7.1.2.2.</span> <span class="toc-text">为什么要这样？避免“父子进程资源竞争”</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E4%BE%8B%E5%A4%96%EF%BC%9A%E6%A0%B9-cgroup%EF%BC%88root%EF%BC%89%E4%B8%8D%E5%8F%97%E6%AD%A4%E9%99%90%E5%88%B6"><span class="toc-number">1.7.1.2.3.</span> <span class="toc-text">例外：根 cgroup（root）不受此限制</span></a></li></ol></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#cgroup-%E8%B5%84%E6%BA%90%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.7.2.</span> <span class="toc-text">cgroup 资源分配模型</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-Weights%EF%BC%88%E6%9D%83%E9%87%8D%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B%EF%BC%89"><span class="toc-number">1.7.2.1.</span> <span class="toc-text">1. Weights（权重分配模型）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-Limits%EF%BC%88%E9%99%90%E5%88%B6%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B%EF%BC%89"><span class="toc-number">1.7.2.2.</span> <span class="toc-text">2. Limits（限制分配模型）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-Protections%EF%BC%88%E4%BF%9D%E6%8A%A4%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B%EF%BC%89"><span class="toc-number">1.7.2.3.</span> <span class="toc-text">3. Protections（保护分配模型）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-Allocations%EF%BC%88%E4%B8%93%E5%B1%9E%E5%88%86%E9%85%8D%E6%A8%A1%E5%9E%8B%EF%BC%89"><span class="toc-number">1.7.2.4.</span> <span class="toc-text">4. Allocations（专属分配模型）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%BF%9B%E7%A8%8B-%E7%BA%BF%E7%A8%8B%E4%B8%8E-cgroup-%E5%85%B3%E7%B3%BB"><span class="toc-number">1.7.3.</span> <span class="toc-text">进程&#x2F;线程与 cgroup 关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#cgroup-namespace%E6%8E%A7%E4%BB%B6%EF%BC%88cgroupns%EF%BC%89"><span class="toc-number">1.7.4.</span> <span class="toc-text">cgroup namespace控件（cgroupns）</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000101/" title="容器相关命令">容器相关命令</a><time datetime="2025-08-22T03:52:48.000Z" title="发表于 2025-08-22 11:52:48">2025-08-22</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000102/" title="Namespace">Namespace</a><time datetime="2025-08-22T03:52:48.000Z" title="发表于 2025-08-22 11:52:48">2025-08-22</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000100/" title="Container">Container</a><time datetime="2025-08-21T03:50:24.000Z" title="发表于 2025-08-21 11:50:24">2025-08-21</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '007f50503f1889c64faeb1be9893302e'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

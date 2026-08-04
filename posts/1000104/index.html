@@ -1,0 +1,572 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>用c语言构建简易容器 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      &#x2F;&#x2F; 启用GNU">
+<meta property="og:type" content="article">
+<meta property="og:title" content="用c语言构建简易容器">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000104/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      &#x2F;&#x2F; 启用GNU">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2025-08-27T04:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-04T02:21:35.108Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Container">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "用c语言构建简易容器",
+  "url": "http://zmty365.github.io/posts/1000104/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2025-08-27T04:00:00.000Z",
+  "dateModified": "2026-08-04T02:21:35.108Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000104/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '用c语言构建简易容器',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">5</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">用c语言构建简易容器</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">用c语言构建简易容器</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AE%B9%E5%99%A8%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">容器底层实现</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">3.6k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>14分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="构建简易容器"><a href="#构建简易容器" class="headerlink" title="构建简易容器"></a>构建简易容器</h1><blockquote>
+<p>在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。</p>
+</blockquote>
+<h2 id="创建七种namespace"><a href="#创建七种namespace" class="headerlink" title="创建七种namespace"></a>创建七种namespace</h2><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> _GNU_SOURCE      <span class="comment">// 启用GNU扩展功能（如clone函数的扩展参数）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;errno.h&gt;</span>       <span class="comment">// 用于错误码处理（errno）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sched.h&gt;</span>       <span class="comment">// 用于clone系统调用</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span>       <span class="comment">// 用于输入输出（fprintf等）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span>      <span class="comment">// 用于字符串操作（strerror等）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/wait.h&gt;</span>    <span class="comment">// 用于等待子进程（waitpid、WEXITSTATUS）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span>      <span class="comment">// 用于execvp函数</span></span></span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> STACKSIZE (1024 * 1024)  <span class="comment">// 子进程栈大小（1MB）</span></span></span><br><span class="line"></span><br><span class="line"><span class="type">static</span> <span class="type">char</span> <span class="built_in">stack</span>[STACKSIZE];  <span class="comment">// 子进程的栈空间（栈是向下增长的）</span></span><br><span class="line"></span><br><span class="line"><span class="type">void</span> <span class="title function_">print_err</span><span class="params">(<span class="type">char</span> <span class="type">const</span> *<span class="type">const</span> reason)</span> &#123;</span><br><span class="line">  <span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Error %s: %s\n&quot;</span>, reason, strerror(errno));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">exec</span><span class="params">(<span class="type">void</span> *args)</span> &#123;</span><br><span class="line">  <span class="type">char</span> **<span class="type">const</span> argv = args;  <span class="comment">// args是main中传入的命令参数（如[&quot;/bin/sh&quot;, NULL]）</span></span><br><span class="line">  <span class="keyword">if</span> (execvp(argv[<span class="number">0</span>], argv) != <span class="number">0</span>) &#123;  <span class="comment">// 替换当前进程为目标命令</span></span><br><span class="line">    print_err(<span class="string">&quot;executing command&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> **argv)</span> &#123;</span><br><span class="line">  <span class="comment">// 检查参数：必须提供要执行的命令（如./program /bin/sh）</span></span><br><span class="line">  <span class="keyword">if</span> (argc &lt; <span class="number">2</span>) &#123;</span><br><span class="line">    <span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;No command specified\n&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 命名空间标志：指定需要隔离的资源类型</span></span><br><span class="line">  <span class="type">const</span> <span class="type">int</span> flags = CLONE_NEWNET | CLONE_NEWUTS | CLONE_NEWNS |</span><br><span class="line">                    CLONE_NEWIPC | CLONE_NEWPID | CLONE_NEWUSER |</span><br><span class="line">                    CLONE_NEWCGROUP | SIGCHLD;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 创建子进程（带命名空间隔离）</span></span><br><span class="line">  <span class="type">pid_t</span> pid = clone(exec, <span class="built_in">stack</span> + STACKSIZE, flags, &amp;argv[<span class="number">1</span>]);</span><br><span class="line">  <span class="keyword">if</span> (pid &lt; <span class="number">0</span>) &#123;</span><br><span class="line">    print_err(<span class="string">&quot;calling clone&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 等待子进程结束并获取退出状态</span></span><br><span class="line">  <span class="type">int</span> status = <span class="number">0</span>;</span><br><span class="line">  <span class="keyword">if</span> (waitpid(pid, &amp;status, <span class="number">0</span>) == <span class="number">-1</span>) &#123;</span><br><span class="line">    print_err(<span class="string">&quot;waiting for pid&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 返回子进程的退出码</span></span><br><span class="line">  <span class="keyword">return</span> WEXITSTATUS(status);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>本实验不再引入Time命名空间（希望各位大佬帮忙完善）</p>
+</blockquote>
+<h3 id="解释"><a href="#解释" class="headerlink" title="解释"></a>解释</h3><h4 id="1-头文件与宏定义"><a href="#1-头文件与宏定义" class="headerlink" title="1. 头文件与宏定义"></a><strong>1. 头文件与宏定义</strong></h4><ul>
+<li><code>_GNU_SOURCE</code>：必须定义才能使用<code>clone</code>函数的扩展功能（如命名空间参数）。</li>
+<li><code>STACKSIZE</code>：<code>clone</code>创建的子进程需要独立栈空间，这里定义为1MB。</li>
+</ul>
+<h4 id="2-全局变量与工具函数"><a href="#2-全局变量与工具函数" class="headerlink" title="2. 全局变量与工具函数"></a><strong>2. 全局变量与工具函数</strong></h4><ul>
+<li><code>stack</code>：子进程的栈空间。<code>clone</code>要求显式指定栈地址，且栈在Linux中是向下增长的，因此实际使用时会从<code>stack + STACKSIZE</code>（栈顶）开始。</li>
+<li><code>print_err</code>：错误处理函数，结合<code>errno</code>（系统调用错误码）和<code>strerror</code>（错误码转字符串），打印具体错误原因。</li>
+</ul>
+<h4 id="3-子进程执行函数（exec）"><a href="#3-子进程执行函数（exec）" class="headerlink" title="3. 子进程执行函数（exec）"></a><strong>3. 子进程执行函数（<code>exec</code>）</strong></h4><p>这是<code>clone</code>创建的子进程的入口函数，负责在隔离环境中执行初始化操作并运行目标命令。</p>
+<ul>
+<li><strong>执行目标命令</strong>：<br><code>execvp</code>会用目标程序（如<code>/bin/sh</code>）替换当前子进程的代码段，最终在隔离环境中运行用户指定的命令。</li>
+</ul>
+<h4 id="4-主函数（main）"><a href="#4-主函数（main）" class="headerlink" title="4. 主函数（main）"></a><strong>4. 主函数（<code>main</code>）</strong></h4><p>负责解析参数、配置命名空间、创建子进程并等待其结束。</p>
+<ul>
+<li><strong>命名空间标志（<code>flags</code>）</strong>：<br>这是实现隔离的核心，每个<code>CLONE_NEW*</code>标志对应一种隔离的资源：<ul>
+<li><code>CLONE_NEWNET</code>：网络命名空间（隔离网络接口、IP、端口等）。</li>
+<li><code>CLONE_NEWUTS</code>：UTS命名空间（隔离主机名、域名）。</li>
+<li><code>CLONE_NEWNS</code>：挂载命名空间（隔离文件系统挂载点）。</li>
+<li><code>CLONE_NEWIPC</code>：IPC命名空间（隔离消息队列、共享内存等）。</li>
+<li><code>CLONE_NEWPID</code>：PID命名空间（隔离进程ID，子进程中PID从1开始）。</li>
+<li><code>CLONE_NEWUSER</code>：用户命名空间（隔离用户ID&#x2F;组ID，子进程中root权限受限）。</li>
+<li><code>CLONE_NEWCGROUP</code>：cgroup命名空间（隔离cgroup，限制容器对 cgroup 资源的操作范围）。</li>
+<li><code>SIGCHLD</code>：子进程退出时，向父进程发送<code>SIGCHLD</code>信号（类似<code>fork</code>的行为）。</li>
+</ul>
+</li>
+<li><strong><code>clone</code>系统调用</strong>：<br>比<code>fork</code>更灵活的进程创建函数，参数包括：<ul>
+<li><code>exec</code>：子进程入口函数。</li>
+<li><code>stack + STACKSIZE</code>：子进程栈顶地址（栈向下增长，因此从末端开始）。</li>
+<li><code>flags</code>：命名空间和进程创建选项。</li>
+<li><code>&amp;argv[1]</code>：传递给子进程的参数（即用户指定的命令，如<code>/bin/sh</code>）。</li>
+</ul>
+</li>
+<li><strong>等待子进程</strong>：<br><code>waitpid(pid, &amp;status, 0)</code>阻塞等待子进程结束，<code>WEXITSTATUS(status)</code>提取子进程的退出码并返回。</li>
+</ul>
+<h3 id="验证"><a href="#验证" class="headerlink" title="验证"></a>验证</h3><h4 id="1-编译并进入“容器”"><a href="#1-编译并进入“容器”" class="headerlink" title="1. 编译并进入“容器”"></a>1. 编译并进入“容器”</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">gcc -o namespace namespace.c</span><br><span class="line"><span class="built_in">sudo</span> ./namespace bash</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-是否创建了命名空间"><a href="#2-是否创建了命名空间" class="headerlink" title="2. 是否创建了命名空间"></a>2. 是否创建了命名空间</h4><p>在宿主机中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查找 ./namespaces 的直接子进程（即容器内的 bash）</span></span><br><span class="line">ps -ef | grep -E <span class="string">&quot;namespaces|bash&quot;</span> | grep -v grep</span><br></pre></td></tr></table></figure>
+
+<p>结果如下：</p>
+<p><img src="/../img/posts/04BuildSimpleContainer/02.png" alt="02"></p>
+<p>执行了<code>sudo ./namespace bash</code> 竟然一口气出现了4个进程（1233→1234→1235→1236），本质是 <strong><code>sudo</code> 权限切换、程序执行、<code>clone()</code> 创建子进程</strong> 这三个步骤层层嵌套的结果，每一步都会生成一个新进程。下面拆解每个进程的来源和作用：</p>
+<table>
+<thead>
+<tr>
+<th>进程PID</th>
+<th>进程命令</th>
+<th>来源与作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1233</td>
+<td>sudo .&#x2F;namespaces bash</td>
+<td>你手动执行的第一个 <code>sudo</code> 进程：接收你的命令，验证密码后，启动下一层 <code>sudo</code>（因终端切换）。</td>
+</tr>
+<tr>
+<td>1234</td>
+<td>sudo .&#x2F;namespaces bash</td>
+<td>882 的子进程：<code>sudo</code> 内部切换终端（<code>pts/0</code>→<code>pts/2</code>）时，重新生成的 <code>sudo</code> 进程，用于传递权限。</td>
+</tr>
+<tr>
+<td>1235</td>
+<td>.&#x2F;namespaces bash</td>
+<td>883 的子进程：<code>sudo</code> 权限验证通过后，启动的 <code>namespaces</code> 主程序（你的容器代码）。</td>
+</tr>
+<tr>
+<td>1236</td>
+<td>bash</td>
+<td>884 的子进程：<code>namespaces</code> 程序中 <code>clone()</code> 调用创建的<strong>容器进程</strong>（最终你交互的bash）。</td>
+</tr>
+</tbody></table>
+<p>用 <code>pstree</code> 命令查看进程的父子关系，能更直观看到嵌套结构：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">pstree -p 1233</span><br></pre></td></tr></table></figure>
+
+<p>输出会类似：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">sudo(1233)───sudo(1234)───namespace(1235)───bash(1236)</span><br></pre></td></tr></table></figure>
+<p>这直接证明了4个进程是「父子嵌套」关系，每一层都是前一层的子进程。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"># 查看/proc/pid/ns</span><br><span class="line">sudo ls -l /proc/1/ns</span><br><span class="line">sudo ls -l /proc/1236/ns</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../img/posts/04BuildSimpleContainer/03.png" alt="03"></p>
+<p><strong>发现进程1和进程1236的命名空间中有七个编号不同，说明我们代码是成功的，创建的“容器”成功隔离了。</strong></p>
+<h4 id="3-CLONE-NEWNET-是否生效"><a href="#3-CLONE-NEWNET-是否生效" class="headerlink" title="3. CLONE_NEWNET 是否生效"></a>3. CLONE_NEWNET 是否生效</h4><p>回到我们“容器”中来~</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ip -a</span><br></pre></td></tr></table></figure>
+
+<p><img src="/../img/posts/04BuildSimpleContainer/04.png" alt="04"></p>
+<p>没问题，生效了</p>
+<h4 id="4-CLONE-NEWUTS-是否生效"><a href="#4-CLONE-NEWUTS-是否生效" class="headerlink" title="4. CLONE_NEWUTS 是否生效"></a>4. CLONE_NEWUTS 是否生效</h4><p>很明显，现在主机名是nobody，确实和宿主机主机名不同，但是怎么设置自己想要的主机名呢？等下补充下~</p>
+<h4 id="5-CLONE-NEWNS-和-CLONE-NEWUSER-是否生效"><a href="#5-CLONE-NEWNS-和-CLONE-NEWUSER-是否生效" class="headerlink" title="5. CLONE_NEWNS 和 CLONE_NEWUSER 是否生效"></a>5. CLONE_NEWNS 和 CLONE_NEWUSER 是否生效</h4><p>我们打算创建一个文件夹并挂载tmpfs，但是权限不足！</p>
+<p><img src="/../img/posts/04BuildSimpleContainer/05.png" alt="05"></p>
+<p>通过这个现象，首先可以判断出<code>CLONE_NEWUSER</code>（用户命名空间）肯定生效了，但是我代码中没有配置<strong>用户ID（UID）和组ID（GID）的映射</strong>。这会导致：容器内的进程看似是<code>root</code>（UID&#x3D;0），但在宿主机中被映射到一个无权限的匿名UID（如65534，对应<code>nobody</code>）。因此，在容器内操作宿主机文件系统时，会因权限不足被拒绝。</p>
+<h4 id="6-CLONE-NEWIPC-是否生效"><a href="#6-CLONE-NEWIPC-是否生效" class="headerlink" title="6. CLONE_NEWIPC 是否生效"></a>6. CLONE_NEWIPC 是否生效</h4><p>在宿主机创建一个消息队列</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">ipcmk -Q</span><br><span class="line">ipcs -q</span><br></pre></td></tr></table></figure>
+
+<p>在“容器”中查看</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ipcs -q</span><br></pre></td></tr></table></figure>
+
+<p>没有找到，说明 CLONE_NEWIPC 生效了。</p>
+<h4 id="7-CLONE-NEWPID-是否生效"><a href="#7-CLONE-NEWPID-是否生效" class="headerlink" title="7. CLONE_NEWPID 是否生效"></a>7. CLONE_NEWPID 是否生效</h4><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ps -ef</span><br></pre></td></tr></table></figure>
+
+<p>哇，好多进程，因为我们没有挂载<code>/proc</code>文件系统，这在之前已经讲过，不再赘述。</p>
+<h4 id="8-CLONE-NEWCGROUP-是否生效"><a href="#8-CLONE-NEWCGROUP-是否生效" class="headerlink" title="8. CLONE_NEWCGROUP 是否生效"></a>8. CLONE_NEWCGROUP 是否生效</h4><blockquote>
+<p>待补充</p>
+</blockquote>
+<h3 id="创建更好的“容器”"><a href="#创建更好的“容器”" class="headerlink" title="创建更好的“容器”"></a>创建更好的“容器”</h3><p>我们的目标：</p>
+<ol>
+<li>利用pivot_root或者chroot<strong>更改当前正在运行的进程及其子进程的根目录</strong>。</li>
+<li>配置<strong>用户ID（UID）和组ID（GID）的映射</strong>。</li>
+<li>**重新挂载<code>/proc</code>**以便于正确显示新命名空间内的进程信息。</li>
+<li><strong>设置主机名</strong>。</li>
+</ol>
+<h4 id="创建chroot环境"><a href="#创建chroot环境" class="headerlink" title="创建chroot环境"></a>创建<code>chroot</code>环境</h4><p>想要更新根目录可不容易，首先我们需要创建一个<code>chroot</code>环境。</p>
+<p><strong>使用 chroot，可以更改当前正在运行的进程及其子进程的根目录</strong>。调用 chroot 后，后续命令将针对新根目录 (<code>/</code>) 运行。</p>
+<h5 id="步骤1：先确认bash需要哪些依赖库"><a href="#步骤1：先确认bash需要哪些依赖库" class="headerlink" title="步骤1：先确认bash需要哪些依赖库"></a>步骤1：先确认<code>bash</code>需要哪些依赖库</h5><p>首先用<code>ldd</code>命令查看<code>/bin/bash</code>实际依赖的所有共享库及其路径，这是最准确的方法：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">ldd /bin/bash</span><br></pre></td></tr></table></figure>
+
+<p>运行后会输出类似这样的结果（不同系统路径可能不同）：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">kevin@Kevin:~/project/2$ ldd /bin/bash</span><br><span class="line">        linux-vdso.so.1 (0x00007fff8b9ed000)</span><br><span class="line">        libtinfo.so.6 =&gt; /lib/x86_64-linux-gnu/libtinfo.so.6 (0x000074bf04caf000)</span><br><span class="line">        libc.so.6 =&gt; /lib/x86_64-linux-gnu/libc.so.6 (0x000074bf04a00000)</span><br><span class="line">        /lib64/ld-linux-x86-64.so.2 (0x000074bf04e4a000)</span><br></pre></td></tr></table></figure>
+<p><strong>记录下所有带<code>=&gt;</code>的库文件的实际路径</strong>（比如上面的<code>/lib/x86_64-linux-gnu/</code>）。</p>
+<h5 id="步骤2：创建正确的目录结构并复制库文件"><a href="#步骤2：创建正确的目录结构并复制库文件" class="headerlink" title="步骤2：创建正确的目录结构并复制库文件"></a>步骤2：创建正确的目录结构并复制库文件</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 创建与系统匹配的库目录结构</span></span><br><span class="line"><span class="built_in">mkdir</span> -p new-root/lib/x86_64-linux-gnu</span><br><span class="line"><span class="built_in">mkdir</span> -p new-root/lib64</span><br><span class="line"><span class="built_in">mkdir</span> -p new-root/bin</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制bash二进制文件</span></span><br><span class="line"><span class="built_in">cp</span> /bin/bash new-root/bin/</span><br></pre></td></tr></table></figure>
+
+<p>根据<code>ldd</code>输出，需要复制这些库：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制libtinfo库</span></span><br><span class="line"><span class="built_in">cp</span> /lib/x86_64-linux-gnu/libtinfo.so.6 new-root/lib/x86_64-linux-gnu/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 复制libc库</span></span><br><span class="line"><span class="built_in">cp</span> /lib/x86_64-linux-gnu/libc.so.6 new-root/lib/x86_64-linux-gnu/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 复制动态链接器</span></span><br><span class="line"><span class="built_in">cp</span> /lib64/ld-linux-x86-64.so.2 new-root/lib64/</span><br></pre></td></tr></table></figure>
+
+<h5 id="步骤3：给-new-root-创建-proc-目录-和-tmpfs-挂载点"><a href="#步骤3：给-new-root-创建-proc-目录-和-tmpfs-挂载点" class="headerlink" title="步骤3：给 new-root 创建 /proc 目录 和 tmpfs 挂载点"></a>步骤3：给 <code>new-root</code> 创建 <code>/proc</code> 目录 和 tmpfs 挂载点</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 在 new-root 下手动创建 proc 文件夹</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">mkdir</span> -p ./new-root/proc</span><br></pre></td></tr></table></figure>
+
+<h5 id="步骤4：复制必要的命令和对应的库"><a href="#步骤4：复制必要的命令和对应的库" class="headerlink" title="步骤4：复制必要的命令和对应的库"></a>步骤4：复制必要的命令和对应的库</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 查看 ls 的路径</span></span><br><span class="line"><span class="built_in">which</span> <span class="built_in">ls</span>  <span class="comment"># 输出通常是 /bin/ls（或 /usr/bin/ls，记下来）</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 查看 ls 的依赖库</span></span><br><span class="line">ldd /bin/ls  <span class="comment"># 输出类似：libc.so.6 =&gt; /lib/x86_64-linux-gnu/libc.so.6 ...</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 查看 mkdir 的路径</span></span><br><span class="line"><span class="built_in">which</span> <span class="built_in">mkdir</span>  <span class="comment"># 输出通常是 /bin/mkdir</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 查看 mkdir 的依赖库（通常和 ls 依赖类似，主要是 libc.so.6）</span></span><br><span class="line">ldd /bin/mkdir</span><br><span class="line"></span><br><span class="line">...</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制 ls 命令（路径以 which ls 输出为准）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> /bin/ls ./new-root/bin/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 复制 mkdir 命令（路径以 which mkdir 输出为准）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> /bin/mkdir ./new-root/bin/</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 复制 ls/mkdir 依赖的 libc 库（路径以 ldd 输出为准）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">cp</span> /lib/x86_64-linux-gnu/libc.so.6 ./new-root/lib/x86_64-linux-gnu/</span><br><span class="line"></span><br><span class="line"><span class="comment"># （如果 ldd 还显示其他依赖，比如 libpcre2-8.so.0，也一起复制，格式同上）</span></span><br><span class="line"><span class="comment"># 示例：sudo cp /lib/x86_64-linux-gnu/libpcre2-8.so.0 ./new-root/lib/x86_64-linux-gnu/</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="更合适的做法"><a href="#更合适的做法" class="headerlink" title="更合适的做法"></a>更合适的做法</h4><blockquote>
+<p>更合适的做法是找一个已经打包好的miniroot</p>
+</blockquote>
+<p>成熟的 Linux 基础镜像（如 Alpine、BusyBox）已经打包好了 <code>ls</code>、<code>mkdir</code>、<code>id</code> 等所有基础命令和依赖库，体积小（Alpine 仅 5-10MB），直接下载解压就能用，不用手动复制任何文件。</p>
+<ol>
+<li><p><strong>下载 Alpine 基础镜像</strong>（选择适合的版本）：</p>
+<ul>
+<li>镜像地址可在 <a target="_blank" rel="noopener" href="https://alpinelinux.org/downloads/">Alpine 官网</a> 找到，选「minirootfs」（最小根文件系统）版本。</li>
+</ul>
+</li>
+<li><p><strong>解压到你的 new-root 目录</strong>（直接覆盖或替换原目录，注意备份）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 先清空原 new-root（可选，确保干净）</span></span><br><span class="line"><span class="built_in">sudo</span> <span class="built_in">rm</span> -rf ./new-root/*</span><br><span class="line"><span class="comment"># 解压镜像到 new-root（需要 root 权限保持文件权限）</span></span><br><span class="line"><span class="built_in">sudo</span> tar -zxvf alpine-minirootfs-3.19.1-x86_64.tar.gz -C ./new-root/</span><br></pre></td></tr></table></figure>
+</li>
+<li><p><strong>直接运行容器</strong>（无需再复制任何命令）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">sudo</span> ./container_chroot ./new-root /bin/sh</span><br></pre></td></tr></table></figure>
+
+<p>进入容器后，<code>ls</code>、<code>mkdir</code>、<code>id</code>、<code>cat</code> 等命令全部可用，甚至还能通过 Alpine 的 <code>apk</code> 包管理器安装更多工具（如 <code>apk add vim</code>）。</p>
+</li>
+</ol>
+<h3 id="更多的代码"><a href="#更多的代码" class="headerlink" title="更多的代码"></a>更多的代码</h3><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#<span class="keyword">define</span> _GNU_SOURCE      <span class="comment">// 启用GNU扩展（clone、pivot_root等）</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;errno.h&gt;</span>       <span class="comment">// 错误码处理</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sched.h&gt;</span>       <span class="comment">// clone系统调用</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;stdio.h&gt;</span>       <span class="comment">// 输入输出</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;string.h&gt;</span>      <span class="comment">// 字符串操作</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/wait.h&gt;</span>    <span class="comment">// 等待子进程</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;unistd.h&gt;</span>      <span class="comment">// execvp、chdir等</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/mount.h&gt;</span>   <span class="comment">// mount、umount、pivot_root</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;sys/stat.h&gt;</span>    <span class="comment">// mkdir</span></span></span><br><span class="line"><span class="meta">#<span class="keyword">include</span> <span class="string">&lt;fcntl.h&gt;</span>       <span class="comment">// open</span></span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 声明pivot_root函数以消除警告</span></span><br><span class="line"><span class="keyword">extern</span> <span class="type">int</span> <span class="title function_">pivot_root</span><span class="params">(<span class="type">const</span> <span class="type">char</span> *new_root, <span class="type">const</span> <span class="type">char</span> *put_old)</span>;</span><br><span class="line"></span><br><span class="line"><span class="meta">#<span class="keyword">define</span> STACKSIZE (1024 * 1024)  <span class="comment">// 子进程栈大小（1MB，栈向下增长）</span></span></span><br><span class="line"><span class="type">static</span> <span class="type">char</span> <span class="built_in">stack</span>[STACKSIZE];    <span class="comment">// 子进程栈空间</span></span><br><span class="line"></span><br><span class="line"><span class="comment">// 错误打印函数</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">print_err</span><span class="params">(<span class="type">const</span> <span class="type">char</span> *reason)</span> &#123;</span><br><span class="line">    <span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Error %s: %s\n&quot;</span>, reason, strerror(errno));</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 3. UID/GID映射配置（必须由父进程调用）</span></span><br><span class="line"><span class="type">void</span> <span class="title function_">setup_id_mapping</span><span class="params">(<span class="type">pid_t</span> pid)</span> &#123;</span><br><span class="line">    <span class="comment">// 配置UID映射：容器内UID 0 → 主机UID（getuid()），映射范围1个ID</span></span><br><span class="line">    <span class="type">char</span> uid_map_path[<span class="number">256</span>];</span><br><span class="line">    <span class="built_in">snprintf</span>(uid_map_path, <span class="keyword">sizeof</span>(uid_map_path), <span class="string">&quot;/proc/%d/uid_map&quot;</span>, pid);</span><br><span class="line">    <span class="type">int</span> fd = open(uid_map_path, O_WRONLY);</span><br><span class="line">    <span class="keyword">if</span> (fd == <span class="number">-1</span>) &#123; print_err(<span class="string">&quot;open uid_map&quot;</span>); close(fd); <span class="keyword">return</span>; &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="type">char</span> uid_map[<span class="number">64</span>];</span><br><span class="line">    <span class="built_in">snprintf</span>(uid_map, <span class="keyword">sizeof</span>(uid_map), <span class="string">&quot;0 %d 1&quot;</span>, getuid());  <span class="comment">// 格式：容器UID 主机UID 映射数量</span></span><br><span class="line">    <span class="keyword">if</span> (write(fd, uid_map, <span class="built_in">strlen</span>(uid_map)) == <span class="number">-1</span>)</span><br><span class="line">        print_err(<span class="string">&quot;write uid_map&quot;</span>);</span><br><span class="line">    close(fd);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 配置GID映射（逻辑同UID）</span></span><br><span class="line">    <span class="type">char</span> gid_map_path[<span class="number">256</span>];</span><br><span class="line">    <span class="built_in">snprintf</span>(gid_map_path, <span class="keyword">sizeof</span>(gid_map_path), <span class="string">&quot;/proc/%d/gid_map&quot;</span>, pid);</span><br><span class="line">    fd = open(gid_map_path, O_WRONLY);</span><br><span class="line">    <span class="keyword">if</span> (fd == <span class="number">-1</span>) &#123; print_err(<span class="string">&quot;open gid_map&quot;</span>); close(fd); <span class="keyword">return</span>; &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="type">char</span> gid_map[<span class="number">64</span>];</span><br><span class="line">    <span class="built_in">snprintf</span>(gid_map, <span class="keyword">sizeof</span>(gid_map), <span class="string">&quot;0 %d 1&quot;</span>, getgid());</span><br><span class="line">    <span class="keyword">if</span> (write(fd, gid_map, <span class="built_in">strlen</span>(gid_map)) == <span class="number">-1</span>)</span><br><span class="line">        print_err(<span class="string">&quot;write gid_map&quot;</span>);</span><br><span class="line">    close(fd);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 子进程执行逻辑（包含根目录切换、proc挂载、主机名设置）</span></span><br><span class="line"><span class="type">int</span> <span class="title function_">exec</span><span class="params">(<span class="type">void</span> *args)</span> &#123;</span><br><span class="line">    <span class="type">char</span> **argv = args;</span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *new_root = argv[<span class="number">0</span>];  <span class="comment">// 第1个参数：新根目录路径</span></span><br><span class="line">    <span class="type">char</span> **cmd = &amp;argv[<span class="number">1</span>];           <span class="comment">// 第2个及以后参数：要执行的命令（如/bin/sh）</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 1. 使用chroot切换根目录</span></span><br><span class="line">    <span class="comment">// 步骤1：先切换到新根目录的父目录，确保后续能访问新根</span></span><br><span class="line">    <span class="type">char</span> parent_dir[<span class="number">256</span>];</span><br><span class="line">    <span class="built_in">strncpy</span>(parent_dir, new_root, <span class="keyword">sizeof</span>(parent_dir)<span class="number">-1</span>);</span><br><span class="line">    <span class="type">char</span> *last_slash = <span class="built_in">strrchr</span>(parent_dir, <span class="string">&#x27;/&#x27;</span>);</span><br><span class="line">    <span class="keyword">if</span> (last_slash &amp;&amp; last_slash != parent_dir) &#123;</span><br><span class="line">        *last_slash = <span class="string">&#x27;\0&#x27;</span>;  <span class="comment">// 截断到父目录</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 处理根目录情况</span></span><br><span class="line">        <span class="built_in">strncpy</span>(parent_dir, <span class="string">&quot;/&quot;</span>, <span class="keyword">sizeof</span>(parent_dir)<span class="number">-1</span>);</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 步骤2：切换到父目录</span></span><br><span class="line">    <span class="keyword">if</span> (chdir(parent_dir) != <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;chdir to parent directory&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 步骤3：执行chroot切换根目录</span></span><br><span class="line">    <span class="keyword">if</span> (chroot(new_root) != <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;chroot&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 步骤4：切换到新的根目录</span></span><br><span class="line">    <span class="keyword">if</span> (chdir(<span class="string">&quot;/&quot;</span>) != <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;chdir to new /&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 2. 重新挂载/proc（确保显示新PID命名空间内的进程）</span></span><br><span class="line">    <span class="keyword">if</span> (mount(<span class="string">&quot;proc&quot;</span>, <span class="string">&quot;/proc&quot;</span>, <span class="string">&quot;proc&quot;</span>, <span class="number">0</span>, <span class="string">&quot;&quot;</span>) != <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;mount /proc&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 4. 设置新主机名（UTS命名空间隔离生效）</span></span><br><span class="line">    <span class="type">const</span> <span class="type">char</span> *hostname = <span class="string">&quot;container-host&quot;</span>;</span><br><span class="line">    <span class="keyword">if</span> (sethostname(hostname, <span class="built_in">strlen</span>(hostname)) != <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;sethostname&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 执行目标命令（替换当前进程）</span></span><br><span class="line">    <span class="keyword">if</span> (execvp(cmd[<span class="number">0</span>], cmd) != <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;exec command&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="type">int</span> <span class="title function_">main</span><span class="params">(<span class="type">int</span> argc, <span class="type">char</span> **argv)</span> &#123;</span><br><span class="line">    <span class="comment">// 参数检查：需传入「新根目录路径」和「要执行的命令」（如 ./container ./newroot /bin/sh）</span></span><br><span class="line">    <span class="keyword">if</span> (argc &lt; <span class="number">3</span>) &#123;</span><br><span class="line">        <span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Usage: %s &lt;new-root-path&gt; &lt;command&gt; [args...]\n&quot;</span>, argv[<span class="number">0</span>]);</span><br><span class="line">        <span class="built_in">fprintf</span>(<span class="built_in">stderr</span>, <span class="string">&quot;Example: %s ./newroot /bin/sh\n&quot;</span>, argv[<span class="number">0</span>]);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 命名空间标志：启用所有必要隔离（网络、UTS、挂载、IPC、PID、用户、CGROUP）</span></span><br><span class="line">    <span class="type">const</span> <span class="type">int</span> flags = CLONE_NEWNET | CLONE_NEWUTS | CLONE_NEWNS |</span><br><span class="line">                      CLONE_NEWIPC | CLONE_NEWPID | CLONE_NEWUSER |</span><br><span class="line">                      CLONE_NEWCGROUP | SIGCHLD;  <span class="comment">// SIGCHLD：子进程退出时通知父进程</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">// 创建带命名空间的子进程（栈指针指向栈顶，因栈向下增长）</span></span><br><span class="line">    <span class="type">pid_t</span> pid = clone(exec, <span class="built_in">stack</span> + STACKSIZE, flags, &amp;argv[<span class="number">1</span>]);</span><br><span class="line">    <span class="keyword">if</span> (pid &lt; <span class="number">0</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;clone (create child)&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 父进程：配置UID/GID映射（必须在子进程执行exec前调用）</span></span><br><span class="line">    setup_id_mapping(pid);</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 等待子进程结束，获取退出状态</span></span><br><span class="line">    <span class="type">int</span> status = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">if</span> (waitpid(pid, &amp;status, <span class="number">0</span>) == <span class="number">-1</span>) &#123;</span><br><span class="line">        print_err(<span class="string">&quot;waitpid&quot;</span>);</span><br><span class="line">        <span class="keyword">return</span> <span class="number">1</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> WEXITSTATUS(status);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意事项</strong>：</p>
+<ul>
+<li><code>chroot</code>相比<code>pivot_root</code>隔离性较弱，原根目录仍可能被访问</li>
+<li>运行时仍需要确保新根目录下有完整的依赖（如之前配置的 bash 和相关库）</li>
+<li>编译时需要使用<code>-Wall</code>选项：<code>gcc -Wall container_chroot.c -o container_chroot</code></li>
+<li>运行时需要 root 权限：<code>sudo ./container_chroot ./new-root /bin/sh</code></li>
+</ul>
+<h3 id="验证-1"><a href="#验证-1" class="headerlink" title="验证"></a>验证</h3><p><img src="/../img/posts/04BuildSimpleContainer/06.png" alt="06"></p>
+<p>从结果可以看出，之前没验证的 CLONE_NEWNS 和 CLONE_NEWPID ，显然也是成功的。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000104/">http://zmty365.github.io/posts/1000104/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/posts/1000103/" title="Cgroups"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Cgroups</div></div><div class="info-2"><div class="info-item-1">Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。 cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是取消子系统拆分、采用统一目录结构，所有资源管控逻辑集中在 /sys/fs/cgroup 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。  cgroup简介什么是cgroupcgroup 是 “control group” 的缩写，并且首字母永远不大写。cgroup 是一种以 hierarchical (树形层级)方式组织进程...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000100/" title="Container"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-21</div><div class="info-item-2">Container</div></div><div class="info-2"><div class="info-item-1">容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  容器技术底层容器的实现依赖于 Linux 内核提供的两个核心功能：Namespace 和 Cgroup。这些技术共同支撑了容器的隔离性和资源管理机制，此外，UnionFS（联合文件系统） 是实现镜像轻量化的关键。 1. Namespace：实现“视图隔离”作用是为容器提供独立的“系统视图”，让容器内进程误以为自己在独立的操作系统中运行，实现资源隔离。常见的 Namespace 类型及功能如下：    命名空间类型 作用（隔离的资源） 典型场景    PID（进程 ID） 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） 隔离文件系统挂载点。不同命名空间的进程看到的挂载点（文件系统结构）可以不同。 容器拥有独立的根文件系统（如 / 目录与主...</div></div></div></a><a class="pagination-related" href="/posts/1000102/" title="Namespace"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">Namespace</div></div><div class="info-2"><div class="info-item-1">Linux 命名空间 在本小节，我们将了解容器的底层原理之一——Namespace，通过动手实践逐步搭建一个隔离的环境。  命名空间概述命名空间是一项 Linux 内核功能，于 2002 年随 Linux 2.4.19 引入。命名空间背后的想法是将特定的全局系统资源包装在抽象层中。内核命名空间抽象，允许不同的进程组具有不同的系统视图。这使得命名空间内的进程看起来拥有自己的全局资源的隔离实例。 从 Linux 内核 5.6 开始，共有 8 种命名空间，每种负责隔离一种特定的系统资源。下表详细说明：    命名空间类型 对应的 clone() 标志 对应的 unshare 选项 作用（隔离的资源） 典型场景    PID（进程 ID） CLONE_NEWPID -p 或 --pid 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） CLONE_NEWNS -m 或 --mount 隔离文件...</div></div></div></a><a class="pagination-related" href="/posts/1000103/" title="Cgroups"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-24</div><div class="info-item-2">Cgroups</div></div><div class="info-2"><div class="info-item-1">Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。 cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是取消子系统拆分、采用统一目录结构，所有资源管控逻辑集中在 /sys/fs/cgroup 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。  cgroup简介什么是cgroupcgroup 是 “control group” 的缩写，并且首字母永远不大写。cgroup 是一种以 hierarchical (树形层级)方式组织进程...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">5</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">4</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E6%9E%84%E5%BB%BA%E7%AE%80%E6%98%93%E5%AE%B9%E5%99%A8"><span class="toc-number">1.</span> <span class="toc-text">构建简易容器</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%88%9B%E5%BB%BA%E4%B8%83%E7%A7%8Dnamespace"><span class="toc-number">1.1.</span> <span class="toc-text">创建七种namespace</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%A7%A3%E9%87%8A"><span class="toc-number">1.1.1.</span> <span class="toc-text">解释</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E5%A4%B4%E6%96%87%E4%BB%B6%E4%B8%8E%E5%AE%8F%E5%AE%9A%E4%B9%89"><span class="toc-number">1.1.1.1.</span> <span class="toc-text">1. 头文件与宏定义</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E5%85%A8%E5%B1%80%E5%8F%98%E9%87%8F%E4%B8%8E%E5%B7%A5%E5%85%B7%E5%87%BD%E6%95%B0"><span class="toc-number">1.1.1.2.</span> <span class="toc-text">2. 全局变量与工具函数</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E5%AD%90%E8%BF%9B%E7%A8%8B%E6%89%A7%E8%A1%8C%E5%87%BD%E6%95%B0%EF%BC%88exec%EF%BC%89"><span class="toc-number">1.1.1.3.</span> <span class="toc-text">3. 子进程执行函数（exec）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-%E4%B8%BB%E5%87%BD%E6%95%B0%EF%BC%88main%EF%BC%89"><span class="toc-number">1.1.1.4.</span> <span class="toc-text">4. 主函数（main）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%AA%8C%E8%AF%81"><span class="toc-number">1.1.2.</span> <span class="toc-text">验证</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E7%BC%96%E8%AF%91%E5%B9%B6%E8%BF%9B%E5%85%A5%E2%80%9C%E5%AE%B9%E5%99%A8%E2%80%9D"><span class="toc-number">1.1.2.1.</span> <span class="toc-text">1. 编译并进入“容器”</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E6%98%AF%E5%90%A6%E5%88%9B%E5%BB%BA%E4%BA%86%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4"><span class="toc-number">1.1.2.2.</span> <span class="toc-text">2. 是否创建了命名空间</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-CLONE-NEWNET-%E6%98%AF%E5%90%A6%E7%94%9F%E6%95%88"><span class="toc-number">1.1.2.3.</span> <span class="toc-text">3. CLONE_NEWNET 是否生效</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#4-CLONE-NEWUTS-%E6%98%AF%E5%90%A6%E7%94%9F%E6%95%88"><span class="toc-number">1.1.2.4.</span> <span class="toc-text">4. CLONE_NEWUTS 是否生效</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#5-CLONE-NEWNS-%E5%92%8C-CLONE-NEWUSER-%E6%98%AF%E5%90%A6%E7%94%9F%E6%95%88"><span class="toc-number">1.1.2.5.</span> <span class="toc-text">5. CLONE_NEWNS 和 CLONE_NEWUSER 是否生效</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#6-CLONE-NEWIPC-%E6%98%AF%E5%90%A6%E7%94%9F%E6%95%88"><span class="toc-number">1.1.2.6.</span> <span class="toc-text">6. CLONE_NEWIPC 是否生效</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#7-CLONE-NEWPID-%E6%98%AF%E5%90%A6%E7%94%9F%E6%95%88"><span class="toc-number">1.1.2.7.</span> <span class="toc-text">7. CLONE_NEWPID 是否生效</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#8-CLONE-NEWCGROUP-%E6%98%AF%E5%90%A6%E7%94%9F%E6%95%88"><span class="toc-number">1.1.2.8.</span> <span class="toc-text">8. CLONE_NEWCGROUP 是否生效</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%9B%E5%BB%BA%E6%9B%B4%E5%A5%BD%E7%9A%84%E2%80%9C%E5%AE%B9%E5%99%A8%E2%80%9D"><span class="toc-number">1.1.3.</span> <span class="toc-text">创建更好的“容器”</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%88%9B%E5%BB%BAchroot%E7%8E%AF%E5%A2%83"><span class="toc-number">1.1.3.1.</span> <span class="toc-text">创建chroot环境</span></a><ol class="toc-child"><li class="toc-item toc-level-5"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A41%EF%BC%9A%E5%85%88%E7%A1%AE%E8%AE%A4bash%E9%9C%80%E8%A6%81%E5%93%AA%E4%BA%9B%E4%BE%9D%E8%B5%96%E5%BA%93"><span class="toc-number">1.1.3.1.1.</span> <span class="toc-text">步骤1：先确认bash需要哪些依赖库</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A42%EF%BC%9A%E5%88%9B%E5%BB%BA%E6%AD%A3%E7%A1%AE%E7%9A%84%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9E%84%E5%B9%B6%E5%A4%8D%E5%88%B6%E5%BA%93%E6%96%87%E4%BB%B6"><span class="toc-number">1.1.3.1.2.</span> <span class="toc-text">步骤2：创建正确的目录结构并复制库文件</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A43%EF%BC%9A%E7%BB%99-new-root-%E5%88%9B%E5%BB%BA-proc-%E7%9B%AE%E5%BD%95-%E5%92%8C-tmpfs-%E6%8C%82%E8%BD%BD%E7%82%B9"><span class="toc-number">1.1.3.1.3.</span> <span class="toc-text">步骤3：给 new-root 创建 &#x2F;proc 目录 和 tmpfs 挂载点</span></a></li><li class="toc-item toc-level-5"><a class="toc-link" href="#%E6%AD%A5%E9%AA%A44%EF%BC%9A%E5%A4%8D%E5%88%B6%E5%BF%85%E8%A6%81%E7%9A%84%E5%91%BD%E4%BB%A4%E5%92%8C%E5%AF%B9%E5%BA%94%E7%9A%84%E5%BA%93"><span class="toc-number">1.1.3.1.4.</span> <span class="toc-text">步骤4：复制必要的命令和对应的库</span></a></li></ol></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%9B%B4%E5%90%88%E9%80%82%E7%9A%84%E5%81%9A%E6%B3%95"><span class="toc-number">1.1.3.2.</span> <span class="toc-text">更合适的做法</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%9B%B4%E5%A4%9A%E7%9A%84%E4%BB%A3%E7%A0%81"><span class="toc-number">1.1.4.</span> <span class="toc-text">更多的代码</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%AA%8C%E8%AF%81-1"><span class="toc-number">1.1.5.</span> <span class="toc-text">验证</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000101/" title="容器相关命令">容器相关命令</a><time datetime="2025-08-22T03:52:48.000Z" title="发表于 2025-08-22 11:52:48">2025-08-22</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000102/" title="Namespace">Namespace</a><time datetime="2025-08-22T03:52:48.000Z" title="发表于 2025-08-22 11:52:48">2025-08-22</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000100/" title="Container">Container</a><time datetime="2025-08-21T03:50:24.000Z" title="发表于 2025-08-21 11:50:24">2025-08-21</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '15716ea32df8e8b3a449a334c1d3bc2e'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
