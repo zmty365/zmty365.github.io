@@ -1,0 +1,1001 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes 网络：Service、Pod 通讯与 Ingress | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="Kubernetes 网络一、Kubernetes 的三种 IPKubernetes 中有三种不同层面的 IP，理解它们的区别是理解 K8s 网络的基础。  Node IP：Node 节点的 IP 地址 Node IP 是 Kubernetes 集群中节点的物理网卡 IP 地址，所有属于这个网络的服务器之间都能通过这个网络直接通信。  Pod IP：Pod 的 IP 地址 Pod IP 是每个 P">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes 网络：Service、Pod 通讯与 Ingress">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000205/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="Kubernetes 网络一、Kubernetes 的三种 IPKubernetes 中有三种不同层面的 IP，理解它们的区别是理解 K8s 网络的基础。  Node IP：Node 节点的 IP 地址 Node IP 是 Kubernetes 集群中节点的物理网卡 IP 地址，所有属于这个网络的服务器之间都能通过这个网络直接通信。  Pod IP：Pod 的 IP 地址 Pod IP 是每个 P">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-05T13:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-05T12:32:56.835Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Ingress">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Service">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes 网络：Service、Pod 通讯与 Ingress",
+  "url": "http://zmty365.github.io/posts/1000205/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-05T13:00:00.000Z",
+  "dateModified": "2026-08-05T12:32:56.835Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000205/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes 网络：Service、Pod 通讯与 Ingress',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">14</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">14</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes 网络：Service、Pod 通讯与 Ingress</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes 网络：Service、Pod 通讯与 Ingress</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-05T13:00:00.000Z" title="发表于 2026-08-05 21:00:00">2026-08-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">5.8k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>20分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Kubernetes-网络"><a href="#Kubernetes-网络" class="headerlink" title="Kubernetes 网络"></a>Kubernetes 网络</h1><h2 id="一、Kubernetes-的三种-IP"><a href="#一、Kubernetes-的三种-IP" class="headerlink" title="一、Kubernetes 的三种 IP"></a>一、Kubernetes 的三种 IP</h2><p>Kubernetes 中有三种不同层面的 IP，理解它们的区别是理解 K8s 网络的基础。</p>
+<ul>
+<li><p><strong>Node IP：Node 节点的 IP 地址</strong></p>
+<p>Node IP 是 Kubernetes 集群中节点的物理网卡 IP 地址，所有属于这个网络的服务器之间都能通过这个网络直接通信。</p>
+</li>
+<li><p><strong>Pod IP：Pod 的 IP 地址</strong></p>
+<p>Pod IP 是每个 Pod 的 IP 地址，它由<strong>集群配置的 CNI 插件</strong>（如 Flannel、Calico 等）根据规划好的 Pod 网段分配，通常构成一个覆盖整个集群的虚拟网络。集群内的所有 Pod 都在同一个扁平的网络平面内，可以直接通过 Pod IP 互相通信。</p>
+</li>
+<li><p><strong>Cluster IP：Service 的 IP 地址（Service Virtual IP，service vip）</strong></p>
+<p>Cluster IP 是一个虚拟 IP，专门服务于 Kubernetes 的 Service 对象，由 Kubernetes 管理和分配。它有几个重要特点：</p>
+<ul>
+<li>实际的消费者 Pod 通常并不直接调用 Service 的 Cluster IP，而是先调用<strong>服务名</strong>。因为 Cluster IP 也会变（例如针对 TEST &#x2F; UAT &#x2F; PROD 等不同环境的发布，Cluster IP 会不同），而服务名一般不变。</li>
+<li>Cluster IP 仅仅作用于 Kubernetes Service 这个对象，并由 Kubernetes 管理和分配 IP 地址。</li>
+<li>Cluster IP <strong>无法被 ping</strong>，它没有一个”实体网络对象”来响应。</li>
+<li>Cluster IP 只能结合 Service Port 组成一个具体的通信端口，单独的 Cluster IP 不具备通信的基础，并且它们属于 Kubernetes 集群这样一个封闭的空间。</li>
+</ul>
+</li>
+</ul>
+<pre><code class="highlight mermaid">graph TD
+    NodeIP[Node IP&lt;br/&gt;节点物理网卡 IP&lt;br/&gt;节点间直接通信]
+    PodIP[Pod IP&lt;br/&gt;由 CNI 插件分配&lt;br/&gt;集群内 Pod 间直接通信]
+    ClusterIP[Cluster IP&lt;br/&gt;Service 虚拟 IP&lt;br/&gt;不可 ping，需配合端口]
+    ClusterIP --&gt;|负载均衡转发| PodIP
+    PodIP --&gt;|运行在| NodeIP</code></pre>
+
+<h2 id="二、Service"><a href="#二、Service" class="headerlink" title="二、Service"></a>二、Service</h2><p>一个 Pod 只是一个运行服务的实例，随时可能在一个节点上停止，又在另一个节点以一个新的 IP 启动一个新的 Pod，因此不能以确定的 IP 和端口号提供服务。要稳定地提供服务，就需要<strong>服务发现</strong>和<strong>负载均衡</strong>能力。</p>
+<p>服务发现完成的工作，是针对客户端访问的服务，找到对应的后端服务实例。在 K8s 集群中，客户端需要访问的服务就是 <strong>Service</strong> 对象。每个 Service 会对应一个集群内部有效的虚拟 IP，集群内部通过虚拟 IP 访问一个服务。</p>
+<p>在 Kubernetes 集群中，微服务的负载均衡是由 <strong>Kube-proxy</strong> 实现的。Kube-proxy 是 Kubernetes 集群内部的负载均衡器，是一个分布式代理服务器，在每个节点上都有一个。这一设计体现了它的伸缩性优势：需要访问服务的节点越多，提供负载均衡能力的 Kube-proxy 就越多，高可用节点也随之增多。相比之下，如果在服务器端做一个反向代理来做负载均衡，还要进一步解决反向代理自身的负载均衡和高可用问题。</p>
+<p>Service 是 K8s 服务的核心，它屏蔽了服务细节，统一对外暴露服务接口。举个例子：一个服务 A 部署了 3 个副本，也就是 3 个 Pod；对于用户来说，只需要关注一个 Service 的入口即可，而不需要操心究竟应该请求哪一个 Pod。优势非常明显：</p>
+<ul>
+<li>一方面，外部用户不需要感知因 Pod 上服务意外崩溃、K8s 重新拉起 Pod 而造成的 IP 变更，也不需要感知因升级、变更服务带来的 Pod 替换而造成的 IP 变化；</li>
+<li>另一方面，Service 还可以做流量负载均衡。</li>
+</ul>
+<h3 id="2-1-Service-的四种类型"><a href="#2-1-Service-的四种类型" class="headerlink" title="2.1 Service 的四种类型"></a>2.1 Service 的四种类型</h3><p>Service 有四种类型：<strong>ClusterIP、NodePort、LoadBalancer、ExternalName</strong>，下面逐一介绍。</p>
+<h4 id="ClusterIP"><a href="#ClusterIP" class="headerlink" title="ClusterIP"></a>ClusterIP</h4><figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">chogori</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">clusterIP:</span> <span class="number">10.233</span><span class="number">.50</span><span class="number">.242</span>       <span class="comment"># 指定服务的 ClusterIP</span></span><br><span class="line">  <span class="attr">ports:</span>                         <span class="comment"># 指定端口（两个）</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">client</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">2379</span>                   <span class="comment"># 服务的端口</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">2379</span>             <span class="comment"># 容器的端口</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">peer</span></span><br><span class="line">    <span class="attr">port:</span> <span class="number">2380</span></span><br><span class="line">    <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">2380</span></span><br><span class="line">  <span class="attr">selector:</span>                      <span class="comment"># 标签选择器，必须指定 pod 资源本身的标签</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">etcd</span></span><br><span class="line">  <span class="attr">sessionAffinity:</span> <span class="string">None</span>          <span class="comment"># 定义要使用的粘性会话类型，仅支持 &quot;None&quot; 和 &quot;ClientIP&quot;</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">ClusterIP</span></span><br></pre></td></tr></table></figure>
+
+<p>ClusterIP 是 Service 默认的类型 &#x2F; 机制。如上面的 yaml 文件，如果并没有指定 <code>type</code>，那么执行 <code>kubectl create -f service-demo.yaml</code> 之后就会得到一个 ClusterIP 类型的 Service。</p>
+<p>ClusterIP 类型的 Service 会提供一个 <code>CLUSTER-IP</code> 和 <code>PORT(S)</code>，能够允许 K8s 内部相同 namespace 下的任何 Pod 访问。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master mainfests]# kubectl get svc</span><br><span class="line">NAME     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)             AGE</span><br><span class="line">etcd     ClusterIP   10.233.50.242   &lt;none&gt;        2379/TCP,2380/TCP   34d</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master mainfests]# kubectl describe svc -n chogori etcd</span><br><span class="line">Name:              etcd</span><br><span class="line">Namespace:         chogori</span><br><span class="line">Labels:            &lt;none&gt;</span><br><span class="line">Annotations:       &lt;none&gt;</span><br><span class="line">Selector:          app=etcd</span><br><span class="line">Type:              ClusterIP</span><br><span class="line">IP:                10.233.50.242                <span class="comment"># service ip</span></span><br><span class="line">Port:              client  2379/TCP             <span class="comment"># 第一个 pod 的端口</span></span><br><span class="line">TargetPort:        2379/TCP</span><br><span class="line">Endpoints:         11.161.70.212:2379           <span class="comment"># 此处的 ip+端口就是 pod 的 ip+端口</span></span><br><span class="line">Port:              peer  2380/TCP               <span class="comment"># 第二个 pod 的端口</span></span><br><span class="line">TargetPort:        2380/TCP</span><br><span class="line">Endpoints:         11.161.70.212:2380           <span class="comment"># 此处的 ip+端口就是 pod 的 ip+端口</span></span><br><span class="line">Session Affinity:  None</span><br><span class="line">Events:            &lt;none&gt;</span><br></pre></td></tr></table></figure>
+
+<p><strong>ClusterIP 服务注册发现流程：</strong></p>
+<ol>
+<li>在服务 Pod 实例发布时，Kubelet 负责启动 Pod 实例，启动完成后，Kubelet 会把服务的 Pod IP 列表汇报注册到 Master 节点。</li>
+<li>使用 ClusterIP 发布 Service，K8s 会为服务分配 ClusterIP，同时会在集群中创建出一个同名的 <strong>Endpoints 对象</strong>，用于存储该 Service 下的 Pod IP。</li>
+<li>在服务发现阶段，运行在每个节点的 Kube-Proxy 会监听 Service 和 Endpoints，发现 ClusterIP 和 Pod IP 列表的映射关系，并在各自的 node 节点设置相关的 iptables 或 IPVS 转发规则，指示在接收到目标为某个 ClusterIP 的请求时，进行负载均衡并转发到对应的 Pod IP 上。</li>
+<li>集群内部的消费者通过 ClusterIP 发起调用，这个请求会被本地 iptables 机制截获，然后通过负载均衡转发到目标服务 Pod 实例上。</li>
+</ol>
+<p>ClusterIP 仅在 Kubernetes 集群内部可用，不能从集群外部直接访问。这是为了安全和隔离，确保只有集群内部的流量可以访问这些服务。</p>
+<h4 id="NodePort"><a href="#NodePort" class="headerlink" title="NodePort"></a>NodePort</h4><p>NodePort 可以为外部提供服务。</p>
+<p>NodePort 即节点 Port，通常在部署 Kubernetes 集群时会预留一个端口范围用于 NodePort，其范围默认为 <strong>30000 ~ 32767</strong> 之间的端口。定义 NodePort 类型的 Service 资源时，需要使用 <code>.spec.type</code> 进行明确指定。</p>
+<p>NodePort 实际是在 Pod 所在的物理机器上开了一个端口，让外部流量从这个端口先导流到自己的 <code>port</code>，再导入 <code>targetPort</code>（也就是 Pod 的端口）。</p>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000205/00.png" class="">
+
+<p>先创建 deployment 并做好标签：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master mainfests]# kubectl get pods --show-labels |grep myapp-deploy</span><br><span class="line">myapp-deploy-69b47bc96d-4hxxw   1/1   Running   0   12m   app=myapp,release=canary</span><br><span class="line">myapp-deploy-69b47bc96d-95bc4   1/1   Running   0   12m   app=myapp,release=canary</span><br><span class="line">myapp-deploy-69b47bc96d-hwbzt   1/1   Running   0   12m   app=myapp,release=canary</span><br><span class="line">myapp-deploy-69b47bc96d-pjv74   1/1   Running   0   12m   app=myapp,release=canary</span><br><span class="line">myapp-deploy-69b47bc96d-rf7bs   1/1   Running   0   12m   app=myapp,release=canary</span><br></pre></td></tr></table></figure>
+
+<p>再创建 Service：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">myapp</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">default</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">myapp</span></span><br><span class="line">    <span class="attr">release:</span> <span class="string">canary</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">NodePort</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">nodePort:</span> <span class="number">30080</span></span><br></pre></td></tr></table></figure>
+
+<p>查询：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master mainfests]# kubectl get svc</span><br><span class="line">NAME    TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE</span><br><span class="line">myapp   NodePort   10.101.245.119   &lt;none&gt;        80:30080/TCP   5s</span><br></pre></td></tr></table></figure>
+
+<p>尝试从外部访问（下面命令中的 IP 是集群中任意一个 node 的 IP 即可）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master mainfests]# <span class="keyword">while</span> <span class="literal">true</span>;<span class="keyword">do</span> curl http://192.168.56.11:30080/hostname.html;<span class="built_in">sleep</span> 1;<span class="keyword">done</span></span><br><span class="line">myapp-deploy-69b47bc96d-95bc4</span><br><span class="line">myapp-deploy-69b47bc96d-4hxxw</span><br><span class="line">myapp-deploy-69b47bc96d-pjv74</span><br><span class="line">myapp-deploy-69b47bc96d-rf7bs</span><br><span class="line">myapp-deploy-69b47bc96d-95bc4</span><br><span class="line">myapp-deploy-69b47bc96d-rf7bs</span><br><span class="line">myapp-deploy-69b47bc96d-95bc4</span><br><span class="line">myapp-deploy-69b47bc96d-pjv74</span><br><span class="line">myapp-deploy-69b47bc96d-4hxxw</span><br><span class="line">myapp-deploy-69b47bc96d-pjv74</span><br></pre></td></tr></table></figure>
+
+<p>可以看到请求被轮流分发到了不同的 Pod 上。</p>
+<p><strong>NodePort 服务注册发现流程：</strong></p>
+<ol>
+<li>在服务 Pod 实例发布时，Kubelet 负责启动 Pod 实例，启动完成后把 Pod IP 列表汇报注册到 Master 节点。</li>
+<li>使用 NodePort 发布服务并指定一个 30000 ~ 32767 范围内的端口，<strong>所有 Worker 节点都会对这个端口进行监听</strong>。K8s 在集群中创建出一个同名的 Endpoints 对象，用于存储该 Service 下的 Pod IP。</li>
+<li>运行在每个节点的 Kube-Proxy 会监听 Service 和 Endpoints，发现 ClusterIP 和 Pod IP 列表映射关系，并在各自的 node 节点设置相关的 iptables 或 IPVS 转发规则。</li>
+<li>当外部流量到达任意节点的 NodePort 端口时，kube-proxy 配置的规则会将流量转发到后端的 Service。</li>
+</ol>
+<p>需要注意：<strong>NodePort 本身并不提供负载均衡功能</strong>。NodePort 只是使服务可以通过节点上的静态端口对外访问，而负载均衡是由 Service 本身（通过 kube-proxy 设置的 iptables 或 IPVS 规则）来实现的。</p>
+<h4 id="LoadBalancer"><a href="#LoadBalancer" class="headerlink" title="LoadBalancer"></a>LoadBalancer</h4><p>LoadBalancer 其实就是在客户访问的最前端加入一个负载均衡器。它与 NodePort 的对比如下：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>NodePort</th>
+<th>LoadBalancer</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>性能</td>
+<td>受限于节点数量和端口范围，适合小型集群</td>
+<td>利用云厂商的高性能负载均衡器，适合大型集群</td>
+</tr>
+<tr>
+<td>安全性</td>
+<td>暴露节点 IP 和端口，安全性较低</td>
+<td>由云厂商管理外部 IP 和端口，安全性较高</td>
+</tr>
+<tr>
+<td>成本</td>
+<td>无需额外费用，成本较低</td>
+<td>需支付云厂商的负载均衡器费用，成本较高</td>
+</tr>
+<tr>
+<td>灵活性</td>
+<td>配置简单，灵活性较低</td>
+<td>支持多种负载均衡策略，灵活性较高</td>
+</tr>
+</tbody></table>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000205/01.png" class="">
+
+<p><strong>LoadBalancer 的工作依赖第三方负载均衡器</strong>。例如安装 Ingress 控制器时，会创建一个类型为 LoadBalancer 的 Service。新创建的 Service 的 <code>EXTERNAL-IP</code> 状态是 <code>&lt;pending&gt;</code>——如果没有可用的负载均衡器，它会一直处于 <code>pending</code> 状态。</p>
+<p>下面结合一个实际的 Service 输出，把 IP 和端口讲清楚。</p>
+<p><strong>IP 解析：</strong></p>
+<ul>
+<li><strong>Cluster IP（如 <code>10.233.50.2</code>）</strong>：服务在集群内部的虚拟 IP，集群内其他 Pod 可通过它访问该服务；自动分配，且在服务生命周期内保持不变。</li>
+<li><strong>External IP（显示为 <code>&lt;pending&gt;</code>）</strong>：对于 LoadBalancer 类型的服务，这是<strong>云厂商分配的外部 IP</strong>。在自建集群（如使用 MetalLB）中，可能需要额外配置才会分配；<code>&lt;pending&gt;</code> 表示尚未分配外部 IP。</li>
+</ul>
+<p><strong>端口类型解析：</strong> 一个服务可能暴露多个端口，每种端口含义不同：</p>
+<ul>
+<li><strong>Service Port（如 <code>9091/TCP</code>）</strong>：服务在 Cluster IP 上暴露的端口，集群内部访问时使用。</li>
+<li><strong>TargetPort（如 <code>9091/TCP</code>）</strong>：实际 Pod 上应用程序监听的端口，流量最终会被转发到这里。</li>
+<li><strong>NodePort（如 <code>19650/TCP</code>）</strong>：当服务类型为 NodePort 或 LoadBalancer 时，Kubernetes 会在<strong>每个节点</strong>上开放这个端口。即使没有外部负载均衡器，也可以通过任意节点的 <code>IP + NodePort</code> 访问服务。</li>
+</ul>
+<p><strong>端口映射关系：</strong> 假设当前服务暴露了 4 个端口组，每组格式为 <code>ServicePort:NodePort/TCP</code>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">9091:19650/TCP    # http 服务</span><br><span class="line">9090:30536/TCP    # grpc 服务</span><br><span class="line">9092:23589/TCP    # ws (WebSocket) 服务</span><br><span class="line">9093:20652/TCP    # metrics 服务</span><br></pre></td></tr></table></figure>
+
+<p><strong>连接方式：</strong></p>
+<p>集群内部连接——通过 Cluster IP：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">http://10.233.50.2:9091      # http 服务</span><br><span class="line">grpc://10.233.50.2:9090      # grpc 服务</span><br><span class="line">ws://10.233.50.2:9092        # WebSocket 服务</span><br><span class="line">http://10.233.50.2:9093      # metrics 服务</span><br></pre></td></tr></table></figure>
+
+<p>集群内部连接——通过服务 DNS 名（同一命名空间内）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">http://controller:9091</span><br></pre></td></tr></table></figure>
+
+<p>集群外部连接——通过 NodePort（当外部 IP 未分配时，先获取任意节点的 IP，再用对应的 NodePort）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">http://&lt;任一节点IP&gt;:19650     # http 服务</span><br><span class="line">grpc://&lt;任一节点IP&gt;:30536     # grpc 服务</span><br><span class="line">ws://&lt;任一节点IP&gt;:23589       # WebSocket 服务</span><br><span class="line">http://&lt;任一节点IP&gt;:20652     # metrics 服务</span><br></pre></td></tr></table></figure>
+
+<p>集群外部连接——通过 LoadBalancer IP（当外部 IP 分配后，等待 <code>&lt;pending&gt;</code> 变为实际 IP，如 <code>123.123.123.123</code>）：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">http://123.123.123.123:9091</span><br><span class="line">grpc://123.123.123.123:9090</span><br></pre></td></tr></table></figure>
+
+<p><strong>注意事项：</strong></p>
+<ul>
+<li>如果 <code>externalTrafficPolicy</code> 设置为 <code>Cluster</code>（默认配置），NodePort 上的流量会经过 kube-proxy 的转发，可能会<strong>丢失原始客户端 IP</strong>。</li>
+<li>如果设置为 <code>Local</code>，则只有运行了服务 Pod 的节点才会响应 NodePort 请求，但可以<strong>保留客户端 IP</strong>。</li>
+<li>在生产环境中，通常会配合 Ingress 控制器使用，而不是直接暴露多个 NodePort。</li>
+<li>在云环境中，LoadBalancer IP 的分配通常需要几分钟时间。</li>
+</ul>
+<h4 id="ExternalName"><a href="#ExternalName" class="headerlink" title="ExternalName"></a>ExternalName</h4><p>ExternalName 是一种比较特殊的 Service 类型：它不代理到任何 Pod，也不会分配 Cluster IP，而是通过 DNS 的 <code>CNAME</code> 记录把服务名映射到一个<strong>外部域名</strong>。常用于让集群内的应用以统一的服务名访问集群外部的服务（如外部数据库）。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">my-database</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">default</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">ExternalName</span></span><br><span class="line">  <span class="attr">externalName:</span> <span class="string">db.example.com</span>     <span class="comment"># 集群内访问 my-database 会被解析到该域名</span></span><br></pre></td></tr></table></figure>
+
+<p>集群内的 Pod 访问 <code>my-database</code> 时，DNS 会将其解析为 <code>db.example.com</code>。由于只是 DNS 层面的别名，ExternalName 不涉及端口转发和负载均衡。</p>
+<h3 id="2-2-两种特殊的-Service"><a href="#2-2-两种特殊的-Service" class="headerlink" title="2.2 两种特殊的 Service"></a>2.2 两种特殊的 Service</h3><h4 id="Pod-会话保持（粘性会话）"><a href="#Pod-会话保持（粘性会话）" class="headerlink" title="Pod 会话保持（粘性会话）"></a>Pod 会话保持（粘性会话）</h4><p>Service 资源还支持 <strong>Session affinity（粘性会话）</strong> 机制，可以将来自同一个客户端的请求始终转发至同一个后端 Pod 对象。这意味着它会影响调度算法的流量分发，进而降低负载均衡的效果。</p>
+<p>因此，当客户端访问 Pod 中的应用程序时，如果有基于客户端身份保存某些私有信息、并基于这些私有信息追踪用户活动等需求时，就应该启用 session affinity 机制。</p>
+<p>Service affinity 的效果仅在一段时间内生效，默认值为 <strong>10800 秒</strong>，超出时长后客户端再次访问会重新调度。该机制仅能基于客户端 IP 地址识别客户端身份，它会将经由同一个 NAT 服务器进行源地址转换的所有客户端识别为同一个客户端，由此可知其调度效果并不理想。</p>
+<p>Service 资源通过 <code>.spec.sessionAffinity</code> 和 <code>.spec.sessionAffinityConfig</code> 两个字段配置粘性会话。<code>.spec.sessionAffinity</code> 用于定义要使用的粘性会话类型，仅支持 <code>None</code> 和 <code>ClientIP</code> 两种属性值：</p>
+<ul>
+<li><code>None</code> 就是随机访问，也是默认值。</li>
+<li><code>ClientIP</code> 是把来自同一个客户端的请求调度到同一个 Pod 中。</li>
+</ul>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">myapp</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">default</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">myapp</span></span><br><span class="line">    <span class="attr">release:</span> <span class="string">canary</span></span><br><span class="line">  <span class="attr">sessionAffinity:</span> <span class="string">ClientIP</span>        <span class="comment"># 开启粘性会话</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">NodePort</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">nodePort:</span> <span class="number">30080</span></span><br></pre></td></tr></table></figure>
+
+<p>再次访问，可以看到请求都被固定到了同一个 Pod：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s-master mainfests]# <span class="keyword">while</span> <span class="literal">true</span>;<span class="keyword">do</span> curl http://192.168.56.11:30080/hostname.html;<span class="built_in">sleep</span> 1;<span class="keyword">done</span></span><br><span class="line">myapp-deploy-69b47bc96d-hwbzt</span><br><span class="line">myapp-deploy-69b47bc96d-hwbzt</span><br><span class="line">myapp-deploy-69b47bc96d-hwbzt</span><br><span class="line">myapp-deploy-69b47bc96d-hwbzt</span><br><span class="line">myapp-deploy-69b47bc96d-hwbzt</span><br></pre></td></tr></table></figure>
+
+<p>也可以通过打补丁的方式动态开启 &#x2F; 取消：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># session 保持，同一 IP 访问同一个 pod</span></span><br><span class="line">kubectl patch svc myapp -p <span class="string">&#x27;&#123;&quot;spec&quot;:&#123;&quot;sessionAffinity&quot;:&quot;ClientIP&quot;&#125;&#125;&#x27;</span></span><br><span class="line"><span class="comment"># 取消 session</span></span><br><span class="line">kubectl patch svc myapp -p <span class="string">&#x27;&#123;&quot;spec&quot;:&#123;&quot;sessionAffinity&quot;:&quot;None&quot;&#125;&#125;&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="Headless-Service"><a href="#Headless-Service" class="headerlink" title="Headless Service"></a>Headless Service</h4><p>有时不需要或不想要负载均衡，以及单独的 Service IP。遇到这种情况，可以通过将 <code>spec.clusterIP</code> 指定为 <code>&quot;None&quot;</code> 来创建 <strong>Headless Service</strong>。</p>
+<p>对这类 Service 并不会分配 Cluster IP，kube-proxy 不会处理它们，平台也不会为它们进行负载均衡和路由。DNS 如何实现自动配置，依赖于 Service 是否定义了 selector。这个选项允许开发人员自由寻找他们自己的方式，从而降低与 Kubernetes 系统的耦合性。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">myapp-headless</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">default</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">app:</span> <span class="string">myapp</span></span><br><span class="line">    <span class="attr">release:</span> <span class="string">canary</span></span><br><span class="line">  <span class="attr">clusterIP:</span> <span class="string">&quot;None&quot;</span>                <span class="comment"># headless 的 clusterIP 值为 None</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">80</span></span><br><span class="line">    <span class="attr">targetPort:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>Headless Service 常与 StatefulSet 配合使用：为每个有状态 Pod 提供稳定的 DNS 名称，客户端可以直接解析到具体某个 Pod。</p>
+</blockquote>
+<h3 id="2-3-Kube-Proxy-的三种模式"><a href="#2-3-Kube-Proxy-的三种模式" class="headerlink" title="2.3 Kube-Proxy 的三种模式"></a>2.3 Kube-Proxy 的三种模式</h3><p>iptables 和 ipvs 都是内核态（基于 netfilter），只有 userspace 模式是用户态。</p>
+<ul>
+<li><strong>userspace 模式</strong>：kube-proxy 在用户空间监听一个端口，并将所有到 Service 的流量转发到后端 Pod。具体来说，kube-proxy 为每个 Service 在节点上打开一个随机端口，并建立 iptables 规则将流量重定向到这个代理端口，然后再由 kube-proxy 转发到后端 Pod。优点是实现简单，缺点是性能较低——每个数据包都要经过用户空间处理，增加了额外的开销和延迟。</li>
+<li><strong>iptables 模式</strong>：这是 kube-proxy 的改进版，相比 userspace 有显著的性能提升。kube-proxy 使用 iptables 设置网络规则，这些规则直接在内核空间处理。当有新的 Service 创建时，kube-proxy 会生成相应的 iptables 规则，定义从 Service IP 和端口到后端 Pod 的 NAT 转发规则。数据包在内核空间直接被转发到后端 Pod，减少了上下文切换，提高了性能。缺点是在处理大量规则时，规则管理和更新可能变得复杂。</li>
+<li><strong>ipvs 模式</strong>：这是 kube-proxy 的最新实现方式，使用 Linux 内核中的 <strong>IP Virtual Server（IPVS）</strong> 技术。IPVS 是内核中专门用于负载均衡的模块，支持多种调度算法（轮询、最小连接数、最短延迟等）。数据包在内核空间通过 IPVS 直接转发，性能更高，同时支持更多的负载均衡算法和更复杂的网络规则。缺点是需要内核支持 IPVS 模块。</li>
+</ul>
+<p>通常情况下默认使用 <strong>ipvs 模式</strong>，因为它提供了更好的性能和更多的负载均衡选项，尤其是在大规模集群中。</p>
+<p>kube-proxy 工作机制小结：</p>
+<ol>
+<li>当用户在集群中创建了含有 label 的 Service 后，集群会同时创建出一个同名的 Endpoints 对象，用于存储该 Service 下的 Pod IP。</li>
+<li>运行在每个 Node 上的 kube-proxy 会实时 watch Service 和 Endpoints 对象，并在各自节点设置相关的 iptables 或 IPVS 规则。</li>
+<li>之后，用户便可以在集群内的 Node 或客户端 Pod 上通过 ClusterIP，经过 iptables 或 IPVS 规则进行路由和转发，最终将请求发送到真实的后端 Pod。</li>
+</ol>
+<h2 id="三、Pod-通讯"><a href="#三、Pod-通讯" class="headerlink" title="三、Pod 通讯"></a>三、Pod 通讯</h2><h3 id="3-1-Pod-内部通讯"><a href="#3-1-Pod-内部通讯" class="headerlink" title="3.1 Pod 内部通讯"></a>3.1 Pod 内部通讯</h3><p>先明确几个网络设备的角色：</p>
+<ul>
+<li><strong>eth0</strong> 是节点主机上的网卡，是支持该节点流量出入的设备，也是支持集群节点间 IP 寻址和互通的设备。</li>
+<li><strong>网桥（cni0 &#x2F; docker0）</strong> 是一个虚拟网桥，可以简单理解为一个虚拟交换机，是支持该节点上 Pod 之间进行 IP 寻址和互通的设备。</li>
+<li><strong>veth</strong> 是 Pod 的虚拟网卡，支持该 Pod 内容器互通和对外访问。网桥和 veth 都是 Linux 支持和创建的虚拟网络设备。</li>
+</ul>
+<p><strong>Pod 内部的容器是通过共享一个虚拟网卡相互通信的</strong>，可以直接通过 <code>localhost</code> 相互访问，而这个虚拟网卡是通过一个特殊的容器 <strong>pause</strong> 创建的。</p>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000205/02.png" class="">
+
+<h3 id="3-2-同-Node-的-Pod-通讯"><a href="#3-2-同-Node-的-Pod-通讯" class="headerlink" title="3.2 同 Node 的 Pod 通讯"></a>3.2 同 Node 的 Pod 通讯</h3><p>同一节点上的 Pod 都连接在同一个虚拟网桥上，Pod 的 IP 由 CNI 插件从该节点的网段中分配。因为这些 Pod 都连在同一个网桥、处于同一个网段内，它们可以直接进行 IP 寻址和互通。</p>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000205/03.png" class="">
+
+<h3 id="3-3-不同-Node-的-Pod-通讯"><a href="#3-3-不同-Node-的-Pod-通讯" class="headerlink" title="3.3 不同 Node 的 Pod 通讯"></a>3.3 不同 Node 的 Pod 通讯</h3><p>跨节点的 Pod 通讯主要有两种方案：</p>
+<ul>
+<li><p><strong>路由方案</strong></p>
+<p>通过路由设备为 K8s 集群的 Pod 网络单独划分网段，并配置路由器支持 Pod 网络的转发。这种方案依赖底层的网络设备，但不引入额外的性能开销。</p>
+</li>
+<li><p><strong>覆盖网络（Overlay）方案</strong></p>
+<p>如果底层网络无法控制（比如公有云网络），或者运维团队不支持路由方案，可以采用覆盖网络方案。覆盖网络就是在现有网络之上再建立一个虚拟网络，实现技术有很多，例如 Flannel、Weave Net 等，这些方案大都采用<strong>隧道封包技术</strong>：Pod 网络的数据包在出节点之前，会先被封装成节点网络的数据包；当数据包到达目标节点，包内的 Pod 网络数据包会被解封出来，再转发给节点内部的 Pod。这种方案对底层网络没有特别依赖，但封包解包会引入额外的性能开销。</p>
+</li>
+</ul>
+<h2 id="四、Ingress"><a href="#四、Ingress" class="headerlink" title="四、Ingress"></a>四、Ingress</h2><h3 id="4-1-为什么使用-Ingress"><a href="#4-1-为什么使用-Ingress" class="headerlink" title="4.1 为什么使用 Ingress"></a>4.1 为什么使用 Ingress</h3><p>我们可以使用 Ingress 将内部服务暴露到集群外部。它为你节省了宝贵的静态 IP——因为你不需要声明多个 LoadBalancer 服务了。此外，它还可以进行更多的额外配置。</p>
+<p><strong>手动配置 Nginx 代理服务</strong>：为了让 ClusterIP 类型可以暴露，可以手动配置一个 Nginx 代理服务。例如新增一个名为 <code>service-nginx-proxy</code> 的服务，它是唯一的一个 LoadBalancer 服务，仍然指向一个或多个 Nginx pod endpoints，而之前的另外两个服务则转换为简单的 ClusterIP 服务。这种方式能工作，但需要大量手动配置。</p>
+<p><strong>使用 Ingress 代替手动的 Nginx</strong>：当正确配置 Ingress 后，即使是 ClusterIP 类型的 Service 也可以暴露给外部。相当于使用了一个预先配置好的 Nginx（Ingress），它已经为我们做了所有的代理重定向工作，省去了大量手动配置。</p>
+<h3 id="4-2-Ingress-概述"><a href="#4-2-Ingress-概述" class="headerlink" title="4.2 Ingress 概述"></a>4.2 Ingress 概述</h3><p>Ingress 可以简单理解为”Service 的 Service”：它通过独立的 Ingress 对象来制定请求转发的规则，把请求路由到一个或多个 Service 中。这样就把服务与请求规则解耦了，可以从业务维度统一考虑服务的暴露，而不用为每个 Service 单独考虑。</p>
+<p>Ingress 本质上是 K8s 集群中一个比较特殊的 Service（<code>kind: Ingress</code>）：</p>
+<ul>
+<li>它提供的功能主要是 <strong>7 层反向代理</strong>（也可以提供安全认证、监控、限流和 SSL 证书等高级功能），功能类似 Nginx。</li>
+<li>它对外暴露是通过 HostPort（80 &#x2F; 443），可以和上面的 LoadBalancer 对接起来。</li>
+<li><strong>Ingress 资源自身不能进行”流量穿透”，仅仅是一组规则的集合。</strong></li>
+</ul>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">ingress-myapp</span></span><br><span class="line">  <span class="attr">namespace:</span> <span class="string">default</span></span><br><span class="line">  <span class="attr">annotations:</span></span><br><span class="line">    <span class="attr">kubernetes.io/ingress.class:</span> <span class="string">&quot;nginx&quot;</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">host:</span> <span class="string">myapp.magedu.com</span></span><br><span class="line">    <span class="attr">http:</span></span><br><span class="line">      <span class="attr">paths:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">path:</span> <span class="string">/</span></span><br><span class="line">        <span class="attr">pathType:</span> <span class="string">Prefix</span></span><br><span class="line">        <span class="attr">backend:</span></span><br><span class="line">          <span class="attr">service:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">myapp</span></span><br><span class="line">            <span class="attr">port:</span></span><br><span class="line">              <span class="attr">number:</span> <span class="number">80</span></span><br></pre></td></tr></table></figure>
+
+<p>上面定义了一个 Ingress 资源，其包含一条转发规则：将发往 <code>myapp.magedu.com</code> 的请求，代理给一个名为 <code>myapp</code> 的 Service 资源。</p>
+<h3 id="4-3-Ingress-Controller-概述"><a href="#4-3-Ingress-Controller-概述" class="headerlink" title="4.3 Ingress Controller 概述"></a>4.3 Ingress Controller 概述</h3><p>Ingress 资源自身不能进行”流量穿透”，仅仅是一组规则的集合。这些规则还需要其他功能来辅助落地：比如监听某个套接字，然后根据这些规则的匹配进行路由转发。能够为 Ingress 资源监听套接字并将流量转发的组件，就是 <strong>Ingress Controller</strong>。</p>
+<p>Ingress Controller 不是标准的 K8s 资源，仅仅是 Kubernetes 集群的一个附件，类似于 CoreDNS，需要在集群上单独部署。</p>
+<pre><code class="highlight mermaid">graph TD
+    Client[外部客户端&lt;br/&gt;myapp.magedu.com] --&gt; IngCtrl[Ingress Controller&lt;br/&gt;监听 80/443]
+    IngCtrl --&gt;|按 Ingress 规则匹配| Rule[Ingress 规则集合]
+    Rule --&gt; SVC1[Service myapp]
+    Rule --&gt; SVC2[Service other]
+    SVC1 --&gt; P1[Pod]
+    SVC1 --&gt; P2[Pod]
+    SVC2 --&gt; P3[Pod]</code></pre>
+
+<h3 id="4-4-部署步骤"><a href="#4-4-部署步骤" class="headerlink" title="4.4 部署步骤"></a>4.4 部署步骤</h3><ol>
+<li>下载 Ingress Controller 相关的 YAML 文件，并给 Ingress Controller 创建独立的名称空间。</li>
+<li>部署后端服务（如 myapp），并通过 Service 进行暴露。</li>
+<li>部署 Ingress Controller 的 Service，以接入集群外部流量。</li>
+<li>部署 Ingress，定义转发规则，使 Ingress Controller 和后端服务的 Pod 组进行关联。</li>
+</ol>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000205/">http://zmty365.github.io/posts/1000205/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/%E7%BD%91%E7%BB%9C/">网络</a><a class="post-meta__tags" href="/tags/Service/">Service</a><a class="post-meta__tags" href="/tags/Ingress/">Ingress</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes 中容器创建的全流程详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中容器创建的全流程详解从 kubectl 提交请求到容器真正跑起来，Kubernetes 内部经历了调度、运行时、存储、网络等多个组件的协同。下面按 10 个阶段拆解整个流程。 graph TD     A[1 调度器选择节点] --&gt; B[2 Kubelet 接收请求]     B --&gt; C[3 CRI 请求处理]     C --&gt; D[4 CSI 插件介入 存储卷]     D --&gt; E[5 Pod Sandbox 创建 + 网络命名空间]     E --&gt; F[6 CNI 插件配置网络]     F --&gt; G[7 Container Runtime 管理]     G --&gt; H[8 启动 Pod 内业务容器]     H --&gt; I[9 结果反馈与状态更新]     I --&gt; J[10 故障恢复与自愈]  1. 调度器选择节点 资源评估：Kubernetes 调度器评估所有候选节点的资源状态，包括 CPU、内存、存储空间等，确保节点有足够的资源支持 Pod 的运行。 调度策略：根据预设...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000200/" title="Kubernetes 学习导航"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 学习导航</div></div><div class="info-2"><div class="info-item-1">Kubernetes 学习导航本文是 Kubernetes 系列的学习主线，从「为什么需要编排」出发，循序覆盖架构、工作负载、调度、网络、存储、安全、扩展到批处理调度。  标注 [TODO] 的条目为待补充内容。  graph TD     A[0 入门与环境] --&gt; B[1 架构与核心机制]     B --&gt; C[2 API对象与Pod]     C --&gt; D[3 工作负载与控制器]     D --&gt; E[4 调度]     E --&gt; F[5 网络]     F --&gt; G[6 存储]     G --&gt; H[7 配置与安全]     H --&gt; I[8 运行时与接口]     I --&gt; J[9 可观测与运维]     J --&gt; K[10 扩展与Operator]     K --&gt; L[11 批处理调度 Kueue与Volcano]     L --&gt; M[12 生态插件]  0 入门与环境 在 Windows 系统中搭建单节点 k8s 集群：安装 minikube、k9s、helm Min...</div></div></div></a><a class="pagination-related" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 之 Pod 资源调度</div></div><div class="info-2"><div class="info-item-1">Kubernetes 之 Pod 资源调度一、Pod 资源调度总览API Server 在接受客户端提交的 Pod 对象创建请求后，会通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 这一创建 Pod 对象的调度过程中有 3 个阶段：节点预选、节点优选、节点选定，从而筛选出最佳的节点。  节点预选：基于一系列的预选规则对每个节点进行检查，将那些不符合条件的节点过滤掉，从而完成节点的预选。 节点优选：对预选出的节点进行优先级排序，以便选出最合适运行 Pod 对象的节点。 节点选定：从优先级排序结果中挑选出优先级最高的节点运行 Pod，当这类节点多于 1 个时，则进行随机选择。  预选策略实际上就是节点过滤器，例如节点标签必须能够匹配到 Pod 资源的标签选择器（MatchNodeSelector 实现的规则），以及 Pod 容器的资源请求量不能大于节点上剩余的可分配资源（PodFitsResources 规则）等等。执行预选操作时，调度器会逐一根据规则进行筛选，如果预选没能选定一个合适的节点，此时 Pod 会一直处于 Pending 状...</div></div></div></a><a class="pagination-related" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中容器创建的全流程详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中容器创建的全流程详解从 kubectl 提交请求到容器真正跑起来，Kubernetes 内部经历了调度、运行时、存储、网络等多个组件的协同。下面按 10 个阶段拆解整个流程。 graph TD     A[1 调度器选择节点] --&gt; B[2 Kubelet 接收请求]     B --&gt; C[3 CRI 请求处理]     C --&gt; D[4 CSI 插件介入 存储卷]     D --&gt; E[5 Pod Sandbox 创建 + 网络命名空间]     E --&gt; F[6 CNI 插件配置网络]     F --&gt; G[7 Container Runtime 管理]     G --&gt; H[8 启动 Pod 内业务容器]     H --&gt; I[9 结果反馈与状态更新]     I --&gt; J[10 故障恢复与自愈]  1. 调度器选择节点 资源评估：Kubernetes 调度器评估所有候选节点的资源状态，包括 CPU、内存、存储空间等，确保节点有足够的资源支持 Pod 的运行。 调度策略：根据预设...</div></div></div></a><a class="pagination-related" href="/posts/1000201/" title="Kubernetes 中的 API 对象"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中的 API 对象</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中的 API 对象一、API 对象API 对象是 Kubernetes 集群中的管理操作单元。Kubernetes 集群系统每支持一项新功能、引入一项新技术，一定会引入对应的 API 对象来支持对该功能的管理操作。 每个 API 对象都有三大类属性：元数据 metadata、规范 spec 和状态 status。  元数据（metadata）：用来标识 API 对象。每个对象都至少有 3 个元数据：namespace、name 和 uid；除此以外还有各种各样的标签 labels，用来标识和匹配不同的对象。例如用户可以用标签 env 来区分不同的服务部署环境，分别用 env=dev、env=testing、env=production 来标识开发、测试、生产环境。 规范（spec）：描述用户期望 Kubernetes 集群中的分布式系统达到的理想状态。例如用户可以通过 Replication Controller 设置期望的 Pod 副本数为 3。 状态（status）：描述系统实际当前达到的状态。例如系统当前实际的 Pod 副本数为 2，那么 Replic...</div></div></div></a><a class="pagination-related" href="/posts/1000202/" title="Kubernetes Pod 基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Pod 基础</div></div><div class="info-2"><div class="info-item-1">Kubernetes Pod 基础一、Pod 是什么Pod 是 Kubernetes 中最小的可部署和可调度单元。一个 Pod 封装了一个或多个紧密关联的容器，这些容器共享同一份网络命名空间（Network Namespace）和存储卷（Volume），可以通过 localhost 相互通信。 之所以要有 Pod 这一层抽象，而不是直接调度容器，是因为现实中很多应用是”超亲密关系”的容器组合。例如一个主容器加一个负责收集日志的 Sidecar 容器，它们需要共享同一份文件和网络，必须被作为一个整体来调度、部署和扩缩容。 二、Pod 的生命周期与状态Pod 在其生命周期中会处于不同的阶段（Phase），这个状态记录在 status.phase 字段中。主要状态如下：    状态 含义    Pending Pod 已被 Kubernetes 接受，但还有容器未创建完成（如正在拉取镜像、等待调度）   Running Pod 已绑定到节点，所有容器都已创建，至少有一个容器仍在运行或正在启动&#x2F;重启   Succeeded Pod 中所有容器都已成功终止，且不会再重启   Fa...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">14</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">14</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Kubernetes-%E7%BD%91%E7%BB%9C"><span class="toc-number">1.</span> <span class="toc-text">Kubernetes 网络</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81Kubernetes-%E7%9A%84%E4%B8%89%E7%A7%8D-IP"><span class="toc-number">1.1.</span> <span class="toc-text">一、Kubernetes 的三种 IP</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81Service"><span class="toc-number">1.2.</span> <span class="toc-text">二、Service</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-Service-%E7%9A%84%E5%9B%9B%E7%A7%8D%E7%B1%BB%E5%9E%8B"><span class="toc-number">1.2.1.</span> <span class="toc-text">2.1 Service 的四种类型</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#ClusterIP"><span class="toc-number">1.2.1.1.</span> <span class="toc-text">ClusterIP</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#NodePort"><span class="toc-number">1.2.1.2.</span> <span class="toc-text">NodePort</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#LoadBalancer"><span class="toc-number">1.2.1.3.</span> <span class="toc-text">LoadBalancer</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#ExternalName"><span class="toc-number">1.2.1.4.</span> <span class="toc-text">ExternalName</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E4%B8%A4%E7%A7%8D%E7%89%B9%E6%AE%8A%E7%9A%84-Service"><span class="toc-number">1.2.2.</span> <span class="toc-text">2.2 两种特殊的 Service</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#Pod-%E4%BC%9A%E8%AF%9D%E4%BF%9D%E6%8C%81%EF%BC%88%E7%B2%98%E6%80%A7%E4%BC%9A%E8%AF%9D%EF%BC%89"><span class="toc-number">1.2.2.1.</span> <span class="toc-text">Pod 会话保持（粘性会话）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#Headless-Service"><span class="toc-number">1.2.2.2.</span> <span class="toc-text">Headless Service</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-Kube-Proxy-%E7%9A%84%E4%B8%89%E7%A7%8D%E6%A8%A1%E5%BC%8F"><span class="toc-number">1.2.3.</span> <span class="toc-text">2.3 Kube-Proxy 的三种模式</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81Pod-%E9%80%9A%E8%AE%AF"><span class="toc-number">1.3.</span> <span class="toc-text">三、Pod 通讯</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-Pod-%E5%86%85%E9%83%A8%E9%80%9A%E8%AE%AF"><span class="toc-number">1.3.1.</span> <span class="toc-text">3.1 Pod 内部通讯</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%90%8C-Node-%E7%9A%84-Pod-%E9%80%9A%E8%AE%AF"><span class="toc-number">1.3.2.</span> <span class="toc-text">3.2 同 Node 的 Pod 通讯</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E4%B8%8D%E5%90%8C-Node-%E7%9A%84-Pod-%E9%80%9A%E8%AE%AF"><span class="toc-number">1.3.3.</span> <span class="toc-text">3.3 不同 Node 的 Pod 通讯</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81Ingress"><span class="toc-number">1.4.</span> <span class="toc-text">四、Ingress</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BD%BF%E7%94%A8-Ingress"><span class="toc-number">1.4.1.</span> <span class="toc-text">4.1 为什么使用 Ingress</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Ingress-%E6%A6%82%E8%BF%B0"><span class="toc-number">1.4.2.</span> <span class="toc-text">4.2 Ingress 概述</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-3-Ingress-Controller-%E6%A6%82%E8%BF%B0"><span class="toc-number">1.4.3.</span> <span class="toc-text">4.3 Ingress Controller 概述</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-4-%E9%83%A8%E7%BD%B2%E6%AD%A5%E9%AA%A4"><span class="toc-number">1.4.4.</span> <span class="toc-text">4.4 部署步骤</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress">Kubernetes 网络：Service、Pod 通讯与 Ingress</a><time datetime="2026-08-05T13:00:00.000Z" title="发表于 2026-08-05 21:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解">Kubernetes 中容器创建的全流程详解</a><time datetime="2026-08-05T12:45:00.000Z" title="发表于 2026-08-05 20:45:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度">Kubernetes 之 Pod 资源调度</a><time datetime="2026-08-05T12:30:00.000Z" title="发表于 2026-08-05 20:30:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000202/" title="Kubernetes Pod 基础">Kubernetes Pod 基础</a><time datetime="2026-08-05T12:00:00.000Z" title="发表于 2026-08-05 20:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000201/" title="Kubernetes 中的 API 对象">Kubernetes 中的 API 对象</a><time datetime="2026-08-05T11:35:28.000Z" title="发表于 2026-08-05 19:35:28">2026-08-05</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || 'f2a9b36b119859dc56f9d43be1018be6'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
