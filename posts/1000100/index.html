@@ -1,13 +1,13 @@
-<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Container | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  容器技术底层容器的实现依赖于 Linux 内核提供的两个核心功能：Namespace 和 Cgroup。这些技术共同支撑了容器的隔离性和资源管理机制，此外，UnionFS（联合文件系统） 是实现镜像轻量化的关键。 1. Namespace：实现“视图">
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Container | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  Docker 的实现原理Namespace、Cgroup 和 UnionFS 三大技术支撑了目前 Docker 的实现，也是 Docker 能够出现的最重要原因。  注：AUFS 只是 UnionFS（联合文件系统）的一种早期实现，早期 Docker">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Container">
 <meta property="og:url" content="http://zmty365.github.io/posts/1000100/index.html">
 <meta property="og:site_name" content="爱吃芝麻汤圆">
-<meta property="og:description" content="容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  容器技术底层容器的实现依赖于 Linux 内核提供的两个核心功能：Namespace 和 Cgroup。这些技术共同支撑了容器的隔离性和资源管理机制，此外，UnionFS（联合文件系统） 是实现镜像轻量化的关键。 1. Namespace：实现“视图">
+<meta property="og:description" content="容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  Docker 的实现原理Namespace、Cgroup 和 UnionFS 三大技术支撑了目前 Docker 的实现，也是 Docker 能够出现的最重要原因。  注：AUFS 只是 UnionFS（联合文件系统）的一种早期实现，早期 Docker">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
 <meta property="article:published_time" content="2025-08-21T03:50:24.000Z">
-<meta property="article:modified_time" content="2026-08-04T02:22:31.301Z">
+<meta property="article:modified_time" content="2026-08-05T07:20:39.366Z">
 <meta property="article:author" content="爱吃芝麻汤圆">
 <meta property="article:tag" content="Container">
 <meta name="twitter:card" content="summary">
@@ -18,7 +18,7 @@
   "url": "http://zmty365.github.io/posts/1000100/",
   "image": "http://zmty365.github.io/img/avatar.jpg",
   "datePublished": "2025-08-21T03:50:24.000Z",
-  "dateModified": "2026-08-04T02:22:31.301Z",
+  "dateModified": "2026-08-05T07:20:39.366Z",
   "author": [
     {
       "@type": "Person",
@@ -180,76 +180,250 @@
   isHighlightShrink: false,
   isToc: true,
   pageType: 'post'
-}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Container</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Container</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2025-08-21T03:50:24.000Z" title="发表于 2025-08-21 11:50:24">2025-08-21</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AE%B9%E5%99%A8%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">容器底层实现</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">1.1k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>3分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="容器概述"><a href="#容器概述" class="headerlink" title="容器概述"></a>容器概述</h1><h2 id="容器是什么"><a href="#容器是什么" class="headerlink" title="容器是什么"></a>容器是什么</h2><blockquote>
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Container</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Container</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2025-08-21T03:50:24.000Z" title="发表于 2025-08-21 11:50:24">2025-08-21</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E5%AE%B9%E5%99%A8%E5%BA%95%E5%B1%82%E5%AE%9E%E7%8E%B0/">容器底层实现</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">4k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>12分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="容器概述"><a href="#容器概述" class="headerlink" title="容器概述"></a>容器概述</h1><h2 id="容器是什么"><a href="#容器是什么" class="headerlink" title="容器是什么"></a>容器是什么</h2><blockquote>
 <p>容器是一种<strong>受隔离（namespace）<strong>且受约束（cgroups）的</strong>进程组</strong>，也是隔离且受约束的<strong>环境</strong>，可在其中运行一个或多个进程。</p>
 </blockquote>
-<h2 id="容器技术底层"><a href="#容器技术底层" class="headerlink" title="容器技术底层"></a>容器技术底层</h2><p>容器的实现依赖于 Linux 内核提供的两个核心功能：<strong>Namespace</strong> 和 <strong>Cgroup</strong>。这些技术共同支撑了容器的隔离性和资源管理机制，此外，<strong>UnionFS（联合文件系统）</strong> 是实现镜像轻量化的关键。</p>
-<h3 id="1-Namespace：实现“视图隔离”"><a href="#1-Namespace：实现“视图隔离”" class="headerlink" title="1. Namespace：实现“视图隔离”"></a>1. Namespace：实现“视图隔离”</h3><p>作用是为容器提供独立的“系统视图”，让容器内进程误以为自己在独立的操作系统中运行，实现<strong>资源隔离</strong>。常见的 Namespace 类型及功能如下：</p>
-<table>
+<h2 id="Docker-的实现原理"><a href="#Docker-的实现原理" class="headerlink" title="Docker 的实现原理"></a>Docker 的实现原理</h2><p><strong>Namespace、Cgroup 和 UnionFS</strong> 三大技术支撑了目前 Docker 的实现，也是 Docker 能够出现的最重要原因。</p>
+<blockquote>
+<p>注：AUFS 只是 UnionFS（联合文件系统）的一种早期实现，早期 Docker 常以 AUFS 为例讲解，但如今默认已改用 OverlayFS，因此严格来说三大支柱应表述为 <strong>UnionFS</strong>，而非特指 AUFS。</p>
+</blockquote>
+<ul>
+<li><strong>Namespace</strong>：用于实现资源的隔离，使每个容器拥有独立的进程、网络、文件系统等视图，从而在操作系统层面实现容器之间的隔离。</li>
+<li><strong>Cgroup</strong>：用于限制和分配容器的资源（如 CPU、内存、磁盘 I&#x2F;O 等），确保容器不会过度占用主机资源。</li>
+<li><strong>UnionFS</strong>：一种联合文件系统，用于实现容器的分层镜像和写时复制（Copy-on-Write）机制，使容器可以高效地共享基础镜像并独立修改文件。</li>
+</ul>
+<h2 id="Namespace"><a href="#Namespace" class="headerlink" title="Namespace"></a>Namespace</h2><p>Docker 所实现的隔离性主要来自 kernel 的 namespace，其中 pid、net、ipc、mnt、uts 等 namespace 将 container 的进程、网络、消息、文件系统和 hostname 隔离开。</p>
+<h3 id="1-PID-Namespace（进程命名空间）"><a href="#1-PID-Namespace（进程命名空间）" class="headerlink" title="1. PID Namespace（进程命名空间）"></a>1. PID Namespace（进程命名空间）</h3><p>作用：隔离进程 ID（PID），使得每个容器内的进程拥有独立的 PID 空间。</p>
+<p>特点：</p>
+<ul>
+<li>每个容器内的进程 PID 从 1 开始，类似于主机上的 <code>/sbin/init</code> 进程。</li>
+<li>容器内的进程只能看到同一命名空间或子命名空间中的进程。</li>
+<li><code>/proc</code> 文件系统只显示当前命名空间中的进程。</li>
+<li>父命名空间可以看到子命名空间中的进程，但 PID 可能不同。</li>
+</ul>
+<p>应用场景：实现进程隔离，避免容器内的进程影响主机或其他容器。</p>
+<h3 id="2-Net-Namespace（网络命名空间）"><a href="#2-Net-Namespace（网络命名空间）" class="headerlink" title="2. Net Namespace（网络命名空间）"></a>2. Net Namespace（网络命名空间）</h3><p>作用：隔离网络设备、IP 地址、路由表等网络资源。</p>
+<p>特点：</p>
+<ul>
+<li>每个容器拥有独立的网络设备（如虚拟网卡）、IP 地址和路由表。</li>
+<li><code>/proc/net</code> 目录只显示当前命名空间的网络信息。</li>
+<li>Docker 默认使用 veth 方式将容器的虚拟网卡连接到主机的 docker bridge。</li>
+</ul>
+<p>应用场景：实现网络隔离，使每个容器拥有独立的网络栈。</p>
+<h3 id="3-IPC-Namespace（进程间通信命名空间）"><a href="#3-IPC-Namespace（进程间通信命名空间）" class="headerlink" title="3. IPC Namespace（进程间通信命名空间）"></a>3. IPC Namespace（进程间通信命名空间）</h3><p>作用：隔离进程间通信（IPC）资源，如信号量、消息队列和共享内存。</p>
+<p>Linux 容器完全支持以下三种 IPC 机制：</p>
+<ul>
+<li>信号量（Semaphore）：用于进程间同步。</li>
+<li>消息队列（Message Queue）：用于进程间传递数据。</li>
+<li>共享内存（Shared Memory）：用于高效共享数据。</li>
+</ul>
+<p>特点：</p>
+<ul>
+<li>每个 IPC 对象由内核分配一个标识符（identifier）。</li>
+<li>容器内的进程只能访问同一命名空间中的 IPC 资源。</li>
+</ul>
+<p>应用场景：避免容器间的进程间通信干扰。</p>
+<h3 id="4-Mnt-Namespace（挂载命名空间）"><a href="#4-Mnt-Namespace（挂载命名空间）" class="headerlink" title="4. Mnt Namespace（挂载命名空间）"></a>4. Mnt Namespace（挂载命名空间）</h3><p>作用：隔离文件系统挂载点，使每个容器拥有独立的文件系统视图。</p>
+<p>特点：</p>
+<ul>
+<li>类似于 chroot，但更强大。</li>
+<li>每个容器只能看到自己命名空间中的挂载点。</li>
+<li><code>/proc/mounts</code> 只显示当前命名空间的挂载信息。</li>
+</ul>
+<p>应用场景：实现文件系统隔离，使容器拥有独立的文件目录结构。</p>
+<h3 id="5-UTS-Namespace（主机名和域名命名空间）"><a href="#5-UTS-Namespace（主机名和域名命名空间）" class="headerlink" title="5. UTS Namespace（主机名和域名命名空间）"></a>5. UTS Namespace（主机名和域名命名空间）</h3><p>作用：隔离主机名和域名。UTS（”UNIX Time-sharing System”）namespace 允许每个 container 拥有独立的 hostname 和 domain name，使其在网络上可以被视作一个独立的节点，而非 Host 上的一个进程。</p>
+<p>特点：</p>
+<ul>
+<li>每个容器可以拥有独立的主机名和域名。</li>
+<li>使容器在网络上被视为独立节点。</li>
+</ul>
+<p>应用场景：实现主机名和域名的隔离，使容器在网络中独立标识。</p>
+<h3 id="6-User-Namespace（用户命名空间）"><a href="#6-User-Namespace（用户命名空间）" class="headerlink" title="6. User Namespace（用户命名空间）"></a>6. User Namespace（用户命名空间）</h3><p>作用：隔离用户和用户组 ID。</p>
+<p>特点：</p>
+<ul>
+<li>容器内的用户和用户组 ID 可以与主机不同。</li>
+<li>容器内的进程可以以容器内部的用户身份运行，而非主机用户。</li>
+</ul>
+<p>应用场景：实现用户权限隔离，增强安全性。</p>
+<h3 id="7-Cgroup-Namespace（Cgroup-命名空间）"><a href="#7-Cgroup-Namespace（Cgroup-命名空间）" class="headerlink" title="7. Cgroup Namespace（Cgroup 命名空间）"></a>7. Cgroup Namespace（Cgroup 命名空间）</h3><p>作用：隔离 cgroup 视图。</p>
+<p>特点：</p>
+<ul>
+<li>它让容器内的进程只能看到自己的 cgroup 层次结构，而看不到其他容器或宿主机的 cgroup 信息。</li>
+</ul>
+<p>应用场景：</p>
+<ul>
+<li>防止信息泄露：容器进程无法看到其他容器或宿主机的 cgroup 信息。</li>
+<li>简化容器迁移：容器可以在不同宿主机间迁移，而不需要担心 cgroup 配置的冲突。</li>
+<li>限制资源使用：容器进程无法获取宿主机的 cgroup 访问权限，只能管理自己的 cgroup。</li>
+</ul>
+<h2 id="Cgroup"><a href="#Cgroup" class="headerlink" title="Cgroup"></a>Cgroup</h2><p>cgroup（Control Groups）是 Linux 内核的一个特性，用于对进程组的物理资源（如 CPU、内存、磁盘 I&#x2F;O 等）进行细粒度的控制和监控。它允许你将一个或多个进程分组，并对它们的资源使用进行限制和监控。</p>
+<h3 id="Core（核心）"><a href="#Core（核心）" class="headerlink" title="Core（核心）"></a>Core（核心）</h3><p>定义：Core 是 cgroup 的核心功能，即分层组织进程。</p>
+<p>特点：</p>
+<ul>
+<li>每个 cgroup 可以包含子 cgroup，形成一个层次结构（树）。</li>
+<li>这种层次结构允许对进程进行分组管理。</li>
+</ul>
+<p>作用：提供了一种灵活的方式来组织和管理进程。比如，你可以将所有数据库进程放在一个 cgroup 中，而将所有 Web 服务器进程放在另一个 cgroup 中。</p>
+<p>通俗理解：Core 是 cgroup 的基础功能，就像是一个文件夹系统，允许你创建文件夹（cgroup）和子文件夹（子 cgroup）来分类存放文件（进程）。</p>
+<h3 id="hierarchy（层级结构）"><a href="#hierarchy（层级结构）" class="headerlink" title="hierarchy（层级结构）"></a>hierarchy（层级结构）</h3><p>定义：hierarchy 是 cgroup 的组织形式，可以理解为一棵树，树的每个节点是一个 cgroup（进程组）。</p>
+<p>特点：</p>
+<ul>
+<li>每棵树可以关联零到多个子系统（subsystem）。</li>
+<li>一棵树中包含系统中的所有进程，但每个进程只能属于树中的一个节点（cgroup）。</li>
+<li>系统中可以有多棵树，每棵树关联不同的子系统。</li>
+<li>一个进程可以属于多棵树，但每棵树关联的子系统不同。</li>
+</ul>
+<p>作用：将进程分组，并对这些组进行资源管理；通过关联不同的子系统，实现对不同资源的控制（如 CPU、内存等）。</p>
+<blockquote>
+<p>说明：以上”多棵树、多层级”的组织方式是 <strong>cgroup v1</strong> 的模型。<strong>cgroup v2</strong> 已改为<strong>统一层级（unified hierarchy）</strong>，所有控制器挂载在同一棵树上，是现代 Linux 发行版的默认模式。</p>
+</blockquote>
+<h3 id="Controller（控制器）-Subsystem（子系统）"><a href="#Controller（控制器）-Subsystem（子系统）" class="headerlink" title="Controller（控制器）&#x2F; Subsystem（子系统）"></a>Controller（控制器）&#x2F; Subsystem（子系统）</h3><p>控制器（Controller）和子系统（Subsystem）在 cgroup 的上下文中其实是同一个概念，只是叫法不同。它们都指的是 cgroup 中负责管理特定类型资源的模块。</p>
+<p>控制器负责管理特定类型的系统资源，不同的控制器可以控制不同的资源。例如：</p>
+<ul>
+<li><strong>cpu 控制器</strong>：控制进程的 CPU 时间分配。<ul>
+<li>在 cgroup 中，并不能像硬件虚拟化方案一样定义 CPU 能力，但能够定义 CPU 轮转的优先级，因此具有较高 CPU 优先级的进程会更可能得到 CPU 运算。</li>
+<li>在 <strong>cgroup v1</strong> 中，通过将参数写入 <code>cpu.shares</code> 即可定义该 cgroup 的 CPU 优先级——这里是一个相对权重，而非绝对值；在 <strong>cgroup v2</strong> 中，该接口改为 <code>cpu.weight</code>。</li>
+<li><strong>cpuset</strong> 定义了有几个 CPU 可以被这个 group 使用，或者哪几个 CPU 可以供这个 group 使用。在某些场景下，单 CPU 绑定可以防止多核间缓存切换，从而提高效率。</li>
+</ul>
+</li>
+<li><strong>memory 控制器</strong>：控制进程的内存使用。</li>
+<li><strong>blkio 控制器</strong>：控制块设备 I&#x2F;O（如硬盘）的带宽和 IOPS。</li>
+<li><strong>net_cls 控制器</strong>：控制网络流量的分类和服务质量。</li>
+<li><strong>freezer 控制器</strong>：暂停和恢复 cgroup 任务。</li>
+<li><strong>device 控制器</strong>：允许或拒绝 cgroup 任务对设备的访问。</li>
+</ul>
+<p>每个 cgroup 都有一个 <code>cgroup.controllers</code> 文件，其中列出了所有可供该 cgroup 启用的控制器。这意味着你可以为不同的 cgroup 启用不同的控制器组合，以实现对不同资源的控制。</p>
+<h2 id="联合文件系统-UnionFS"><a href="#联合文件系统-UnionFS" class="headerlink" title="联合文件系统 UnionFS"></a>联合文件系统 UnionFS</h2><h3 id="1-什么是联合文件系统-UnionFS？"><a href="#1-什么是联合文件系统-UnionFS？" class="headerlink" title="1. 什么是联合文件系统 UnionFS？"></a>1. 什么是联合文件系统 UnionFS？</h3><p>联合文件系统可以将多个目录（称为分支）挂载到同一个虚拟文件系统下。每个分支可以有不同的权限，比如：</p>
+<ul>
+<li>只读（readonly）：不能修改。</li>
+<li>读写（readwrite）：可以修改。</li>
+<li>白名单（whiteout-able）：可以删除或隐藏文件。</li>
+</ul>
+<p>核心思想是<strong>分层存储</strong>，通过将多个只读层和一个可写层叠加在一起，形成一个完整的文件系统视图。</p>
+<h3 id="2-联合文件系统在-Docker-中的作用"><a href="#2-联合文件系统在-Docker-中的作用" class="headerlink" title="2. 联合文件系统在 Docker 中的作用"></a>2. 联合文件系统在 Docker 中的作用</h3><p>Docker 使用联合文件系统来实现容器的<strong>镜像分层</strong>和**写时复制（Copy-on-Write）**机制。</p>
+<p><strong>(1) 镜像分层</strong></p>
+<p>Docker 镜像是由多个**只读层（readonly layers）**组成的，每一层包含文件系统的一部分。例如：</p>
+<ul>
+<li>基础镜像（Base Image）包含操作系统的核心文件（如 <code>/bin</code>、<code>/lib</code> 等）。</li>
+<li>上层镜像包含应用程序及其依赖。</li>
+</ul>
+<p>这些只读层通过联合文件系统叠加在一起，形成一个完整的文件系统视图。</p>
+<p><strong>(2) 容器层</strong></p>
+<p>当 Docker启动一个容器时，会在镜像的最上层添加一个<strong>可写层（writable layer）</strong>。所有对文件系统的修改（如创建、修改、删除文件）都发生在可写层中，而不会影响底层的只读镜像。这种机制称为<strong>写时复制（Copy-on-Write）</strong>。</p>
+<p><strong>(3) 镜像共享</strong></p>
+<p>多个容器可以共享同一个基础镜像，但每个容器有自己的可写层。这样可以节省存储空间，因为基础镜像只需要存储一次。</p>
+<h3 id="3-联合文件系统的优势"><a href="#3-联合文件系统的优势" class="headerlink" title="3. 联合文件系统的优势"></a>3. 联合文件系统的优势</h3><ul>
+<li><strong>节省存储空间</strong>：多个容器可以共享同一个基础镜像，避免了重复存储。例如，100 个容器可以共享同一个 Ubuntu 镜像，而不需要存储 100 份 Ubuntu 文件。</li>
+<li><strong>快速部署</strong>：由于镜像分层，启动容器时只需要加载可写层，而不需要复制整个文件系统，这使得容器的启动速度非常快。</li>
+<li><strong>内存更省</strong>：多个容器共享同一个基础镜像，操作系统可以将这些文件缓存到内存中。当多个容器访问相同的文件时，可以直接从内存中读取，减少了磁盘 I&#x2F;O。</li>
+<li><strong>升级更方便</strong>：如果需要更新基础镜像，只需要更新底层的只读层，而不需要修改每个容器。例如，更新 Ubuntu 镜像后，所有基于该镜像的容器都会自动使用新版本。</li>
+<li><strong>灵活的文件修改</strong>：所有对文件系统的修改都发生在可写层中，不会影响底层的只读镜像，这使得基础镜像可以保持稳定，同时允许容器自由修改文件。</li>
+</ul>
+<h2 id="启动过程：典型-Linux-vs-Docker-容器"><a href="#启动过程：典型-Linux-vs-Docker-容器" class="headerlink" title="启动过程：典型 Linux vs Docker 容器"></a>启动过程：典型 Linux vs Docker 容器</h2><h3 id="1-典型的-Linux-启动过程"><a href="#1-典型的-Linux-启动过程" class="headerlink" title="1. 典型的 Linux 启动过程"></a>1. 典型的 Linux 启动过程</h3><p><strong>(1) BootFS（Boot File System）</strong></p>
+<p>作用：BootFS 包含 bootloader 和内核（kernel）。</p>
+<p>过程：</p>
+<ul>
+<li>系统启动时，BIOS&#x2F;UEFI 加载 bootloader（如 GRUB）。</li>
+<li>bootloader 加载内核到内存中。</li>
+<li>内核初始化硬件并加载必要的驱动。</li>
+<li>内核加载完成后，BootFS 会被卸载，内存使用权交给内核。</li>
+</ul>
+<p><strong>(2) RootFS（Root File System）</strong></p>
+<p>作用：RootFS 包含操作系统的核心文件，如 <code>/bin</code>、<code>/lib</code>、<code>/etc</code>、<code>/dev</code> 等。</p>
+<p>过程：</p>
+<ul>
+<li>内核挂载 RootFS 为<strong>只读（readonly）</strong>，并进行文件系统检查。</li>
+<li>检查完成后，RootFS 被切换为<strong>读写（readwrite）</strong>，供用户使用。</li>
+<li>系统启动初始化进程（如 systemd 或 init），加载服务并进入用户空间。</li>
+<li>系统启动后，用户可以通过命令行或图形界面与操作系统交互。</li>
+</ul>
+<h3 id="2-Docker-容器的启动过程"><a href="#2-Docker-容器的启动过程" class="headerlink" title="2. Docker 容器的启动过程"></a>2. Docker 容器的启动过程</h3><blockquote>
+<p><strong>重要纠正</strong>：Docker 镜像<strong>不包含真实的 bootloader 和内核</strong>。容器直接<strong>共享宿主机的内核</strong>，因此容器<strong>没有独立的 BootFS 引导阶段</strong>。下面所说的”bootfs”只是分层概念上的抽象层，实际镜像里并没有可引导内核。</p>
+</blockquote>
+<p><strong>(1) BootFS（概念层）</strong></p>
+<p>在镜像分层的抽象模型里存在一个 bootfs 概念层，但由于容器共享宿主机内核，这一层在容器运行时并不会真正加载引导，通常可忽略。只有在极少数使用自定义内核的特殊场景下才会涉及。</p>
+<p><strong>(2) RootFS</strong></p>
+<p>作用：RootFS 包含操作系统的核心文件，如 <code>/bin</code>、<code>/lib</code>、<code>/etc</code>、<code>/dev</code> 等。</p>
+<p>过程：</p>
+<ul>
+<li>Docker 镜像的 RootFS 是**只读（readonly）**的，由多个镜像层（layers）组成。</li>
+<li>容器启动时，Docker 会在 RootFS 之上加载一个<strong>可写层（容器层）</strong>。</li>
+<li>容器的文件系统视图是 RootFS（只读）和容器层（可写）的联合挂载。</li>
+</ul>
+<p><strong>(3) 容器层</strong></p>
+<p>作用：容器层是容器运行时唯一的可写层，所有对文件系统的修改都发生在这里。</p>
+<p>过程：</p>
+<ul>
+<li>容器启动后，用户可以在容器层中创建、修改或删除文件。</li>
+<li>这些修改不会影响底层的只读镜像，从而实现容器的隔离性和可移植性。</li>
+</ul>
+<p><strong>(4) 后续操作</strong></p>
+<ul>
+<li>容器启动后，Docker 会执行容器中的<strong>入口点（Entrypoint）<strong>或</strong>命令（CMD）</strong>。</li>
+<li>容器进程运行在容器层中，用户可以通过命令行或应用程序与容器交互。</li>
+</ul>
+<h3 id="3-Docker-容器与典型-Linux-启动过程的区别"><a href="#3-Docker-容器与典型-Linux-启动过程的区别" class="headerlink" title="3. Docker 容器与典型 Linux 启动过程的区别"></a>3. Docker 容器与典型 Linux 启动过程的区别</h3><table>
 <thead>
 <tr>
-<th>命名空间类型</th>
-<th>作用（隔离的资源）</th>
-<th>典型场景</th>
+<th>特性</th>
+<th>典型 Linux 启动过程</th>
+<th>Docker 容器启动过程</th>
 </tr>
 </thead>
 <tbody><tr>
-<td><strong>PID</strong>（进程 ID）</td>
-<td>隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。</td>
-<td>容器内的进程 PID 与主机隔离（如容器内的 <code>init</code> 进程为 PID&#x3D;1）。</td>
+<td><strong>BootFS</strong></td>
+<td>包含 bootloader 和内核，启动后卸载。</td>
+<td>共享宿主机内核，无独立 BootFS 引导。</td>
 </tr>
 <tr>
-<td><strong>Mount</strong>（挂载）</td>
-<td>隔离文件系统挂载点。不同命名空间的进程看到的挂载点（文件系统结构）可以不同。</td>
-<td>容器拥有独立的根文件系统（如 <code>/</code> 目录与主机不同）。</td>
+<td><strong>RootFS</strong></td>
+<td>挂载为只读，检查后切换为读写。</td>
+<td>由多个只读镜像层组成，容器层为可写。</td>
 </tr>
 <tr>
-<td><strong>UTS</strong>（主机名&#x2F;域名）</td>
-<td>隔离主机名和域名。每个命名空间可以设置独立的 <code>hostname</code>。</td>
-<td>容器可以有自己的主机名（如 <code>docker run --hostname mycontainer</code>）。</td>
+<td><strong>文件系统</strong></td>
+<td>完整的文件系统，包含所有目录和文件。</td>
+<td>联合文件系统，只读镜像层 + 可写容器层。</td>
 </tr>
 <tr>
-<td><strong>IPC</strong>（进程间通信）</td>
-<td>隔离 System V IPC 和 POSIX 消息队列。不同命名空间的进程无法通过 IPC 直接通信。</td>
-<td>避免容器内进程与主机或其他容器的 IPC 冲突。</td>
+<td><strong>内核</strong></td>
+<td>使用自己的内核。</td>
+<td>共享宿主机的内核。</td>
 </tr>
 <tr>
-<td><strong>Network</strong>（网络）</td>
-<td>隔离网络资源（网卡、IP、端口、路由表、防火墙规则等）。每个命名空间有独立的网络栈。</td>
-<td>容器有独立的虚拟网卡和 IP（如 Docker 的桥接网络）。</td>
-</tr>
-<tr>
-<td><strong>User</strong>（用户&#x2F;组 ID）</td>
-<td>隔离用户 ID（UID）和组 ID（GID）。命名空间内的 UID&#x2F;GID 可以与外部不同（如容器内的 root 对应主机的普通用户）。</td>
-<td>容器内的 root 用户在主机上无特权，提高安全性。</td>
-</tr>
-<tr>
-<td><strong>Cgroup</strong>（控制组）</td>
-<td>隔离 cgroup 视图。进程只能看到自己所在的 cgroup 层级，无法访问其他命名空间的 cgroup 资源。</td>
-<td>限制容器对系统资源（CPU、内存）的使用范围。</td>
-</tr>
-<tr>
-<td><strong>Time</strong>（时间）</td>
-<td>隔离系统时间（包括时钟和计时器）。可以在命名空间内修改时间而不影响主机。</td>
-<td>测试依赖时间的程序（如日志、证书过期）时，避免影响主机时间。</td>
+<td><strong>隔离性</strong></td>
+<td>无隔离，直接运行在物理机或虚拟机上。</td>
+<td>通过命名空间和控制组实现隔离。</td>
 </tr>
 </tbody></table>
-<h3 id="2-Cgroup：实现“资源约束”"><a href="#2-Cgroup：实现“资源约束”" class="headerlink" title="2. Cgroup：实现“资源约束”"></a>2. Cgroup：实现“资源约束”</h3><p>全称为 Control Groups，作用是<strong>限制、统计和隔离</strong>容器对 CPU、内存、磁盘 I&#x2F;O 等资源的使用，避免单个容器过度占用主机资源。常见的 Cgroup 子系统及功能如下：</p>
+<h2 id="Docker-的存储驱动演进"><a href="#Docker-的存储驱动演进" class="headerlink" title="Docker 的存储驱动演进"></a>Docker 的存储驱动演进</h2><p>Docker 在不同的时期和环境下使用了不同的<strong>存储驱动（Storage Driver）</strong>，包括 AUFS、OverlayFS、Device Mapper 等。具体使用哪个取决于：</p>
 <ul>
-<li><strong>CPU 子系统</strong>：限制容器可使用的 CPU 时间片（如限制使用 1 个 CPU 核心、CPU 使用率不超过 50%）。</li>
-<li><strong>Memory 子系统</strong>：限制容器最大可用内存（如限制为 1GB），内存超限时可触发容器 OOM（Out Of Memory）杀死进程。</li>
-<li><strong>BlkIO 子系统</strong>：限制容器对磁盘的读写速率（如限制写速率不超过 100MB&#x2F;s），避免磁盘 I&#x2F;O 被单个容器占满。</li>
-<li><strong>PID 子系统</strong>：限制容器内最大进程数（如限制最多运行 100 个进程），防止容器内进程泄露耗尽主机资源。</li>
+<li><strong>操作系统</strong>：不同的 Linux 发行版支持不同的存储驱动。</li>
+<li><strong>内核版本</strong>：某些存储驱动需要特定的内核版本支持。</li>
+<li><strong>用户配置</strong>：用户可以通过 Docker 配置文件手动指定存储驱动。</li>
 </ul>
-<h3 id="3-UnionFS：实现“镜像分层”"><a href="#3-UnionFS：实现“镜像分层”" class="headerlink" title="3. UnionFS：实现“镜像分层”"></a>3. UnionFS：实现“镜像分层”</h3><p>联合文件系统（如 AUFS、Overlay2）是容器镜像轻量化的核心技术，它支持将多个只读的“镜像层”叠加为一个可写的“容器层”，实现<strong>分层存储</strong>：</p>
-<ul>
-<li><strong>镜像层（只读）</strong>：镜像由多个分层组成（如基础 OS 层、依赖库层、应用代码层），分层可被多个容器共享（如 10 个 Nginx 容器可共享同一个 Nginx 基础镜像层），减少磁盘占用。</li>
-<li><strong>容器层（可写）</strong>：容器运行时会在镜像层之上添加一个可写层，容器内的文件修改（如创建、删除文件）仅发生在可写层，镜像层保持不变——这也是“容器删除后修改丢失，镜像可重复创建容器”的原因。</li>
+<h3 id="1-AUFS"><a href="#1-AUFS" class="headerlink" title="1. AUFS"></a>1. AUFS</h3><ul>
+<li><strong>使用时期</strong>：Docker 早期版本（如 Docker 1.0 到 1.12）。</li>
+<li><strong>支持环境</strong>：Ubuntu、Debian 等支持 AUFS 的 Linux 发行版。</li>
+<li><strong>特点</strong>：性能较好，尤其在处理大量小文件时；但未合并到 Linux 内核主线，需要额外补丁支持。</li>
+<li><strong>现状</strong>：由于未合并到内核主线，AUFS 逐渐被 OverlayFS 取代。</li>
+</ul>
+<h3 id="2-OverlayFS"><a href="#2-OverlayFS" class="headerlink" title="2. OverlayFS"></a>2. OverlayFS</h3><ul>
+<li><strong>使用时期</strong>：<code>overlay</code> 驱动在 Docker 1.4 引入；性能更优的 <code>overlay2</code> 在 Docker 1.12（配合内核 4.0+）引入。</li>
+<li><strong>支持环境</strong>：<code>overlay</code> 需 Linux 内核 3.18 及以上，<code>overlay2</code> 需内核 4.0 及以上（推荐）。</li>
+<li><strong>特点</strong>：高性能、稳定性高；已合并到 Linux 内核主线，无需额外补丁。</li>
+<li><strong>现状</strong>：<strong>overlay2</strong> 是现代 Docker 的默认存储驱动，广泛应用于现代 Linux 发行版。</li>
+</ul>
+<h3 id="3-Device-Mapper"><a href="#3-Device-Mapper" class="headerlink" title="3. Device Mapper"></a>3. Device Mapper</h3><ul>
+<li><strong>使用时期</strong>：Docker 早期版本（如 Docker 1.0 到 1.12）。</li>
+<li><strong>支持环境</strong>：CentOS、RHEL 等不支持 AUFS 的 Linux 发行版。</li>
+<li><strong>特点</strong>：基于块设备的存储驱动，适合企业级环境；配置复杂，性能较 AUFS 和 OverlayFS 稍差。</li>
+<li><strong>现状</strong>：逐渐被 OverlayFS 取代，但在某些特定场景下仍在使用。</li>
 </ul>
 <blockquote>
-<p>下一节我们将了解了一部分和容器比较相关的命令，并对每个命令做讲解和实战。</p>
+<p>下一节我们将了解一部分和容器比较相关的命令，并对每个命令做讲解和实战。</p>
 </blockquote>
-</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000100/">http://zmty365.github.io/posts/1000100/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-27</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a><a class="pagination-related" href="/posts/1000102/" title="Namespace"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">Namespace</div></div><div class="info-2"><div class="info-item-1">Linux 命名空间 在本小节，我们将了解容器的底层原理之一——Namespace，通过动手实践逐步搭建一个隔离的环境。  命名空间概述命名空间是一项 Linux 内核功能，于 2002 年随 Linux 2.4.19 引入。命名空间背后的想法是将特定的全局系统资源包装在抽象层中。内核命名空间抽象，允许不同的进程组具有不同的系统视图。这使得命名空间内的进程看起来拥有自己的全局资源的隔离实例。 从 Linux 内核 5.6 开始，共有 8 种命名空间，每种负责隔离一种特定的系统资源。下表详细说明：    命名空间类型 对应的 clone() 标志 对应的 unshare 选项 作用（隔离的资源） 典型场景    PID（进程 ID） CLONE_NEWPID -p 或 --pid 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） CLONE_NEWNS -m 或 --mount 隔离文件...</div></div></div></a><a class="pagination-related" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-07</div><div class="info-item-2">高级运行时——以 Containerd 和 CRI - O 为例</div></div><div class="info-2"><div class="info-item-1">高级运行时——以 Containerd 和 CRI - O 为例 本文难度系数较大，以containerd为例介绍了高级运行时最重要的功能，高级运行时向下和OCI规范、低级运行时相关，向上和镜像拉取、镜像存储相关，建议结合相关知识点食用，多做实验加深理解。  一、高级运行时回顾：高级运行时 vs 低级运行时首先，回顾一下两个关键概念：  低级运行时 (Low-Level Runtime)： 职责：直接与操作系统内核交互，负责最底层的操作，即创建和运行容器进程。它接收一个包含了 rootfs 路径和配置的 JSON 文件（OCI runtime-spec），然后调用 clone、unshare 等系统调用去启动一个具有正确隔离（namespace、cgroups）的进程。 代表：runc（是 OCI 标准的参考实现）、runhcs（用于 Windows）、crun、kata-runtime。   高级运行时 (High-Level Runtime)： 职责：管理容器的整个生命周期。包括镜像的传输、管理、解压、文件系统快照的维护，以及最终调用低级运行时会执行容器。它解决了“如何从镜像...</div></div></div></a><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000105/" title="容器运行时概述"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-29</div><div class="info-item-2">容器运行时概述</div></div><div class="info-2"><div class="info-item-1">容器运行时概述 本文简单讲解了容器运行时。  一、容器运行时的核心定义容器运行时是管理容器全生命周期（加载镜像、创建隔离环境、启动&#x2F;停止&#x2F;销毁容器、监控资源）的软件组件，核心目标是：  实现容器与宿主机的资源隔离（依赖内核能力或虚拟化技术）； 简化容器的部署与管理，确保兼容性（如遵循 OCI 规范）。  其本质是“运行容器的工具链”，按功能复杂度和隔离技术，可分为 低级运行时、高级运行时、沙盒&#x2F;虚拟化运行时 三类。 二、三类容器运行时的详细解析1. 低级运行时（Low-level Runtime） 核心定位：遵循 OCI 运行时规范的“最小执行引擎”，仅负责将 rootfs + config.json 转换为隔离进程，不处理上层复杂逻辑。 核心能力（与你补充内容一致）： 依赖 Linux 内核的 Namespace（实现进程、网络、UTS 等隔离）和 CGroup（限制 CPU&#x2F;内存&#x2F;IO 资源）； 加载 rootfs（需外部提供，自身不处理镜像），执行容器内初始化进程（如 /bin/bash）； 不包含镜像管理、网络&#x2F;...</div></div></div></a><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-02</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">容器概述</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-number">1.1.</span> <span class="toc-text">容器是什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E6%8A%80%E6%9C%AF%E5%BA%95%E5%B1%82"><span class="toc-number">1.2.</span> <span class="toc-text">容器技术底层</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Namespace%EF%BC%9A%E5%AE%9E%E7%8E%B0%E2%80%9C%E8%A7%86%E5%9B%BE%E9%9A%94%E7%A6%BB%E2%80%9D"><span class="toc-number">1.2.1.</span> <span class="toc-text">1. Namespace：实现“视图隔离”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Cgroup%EF%BC%9A%E5%AE%9E%E7%8E%B0%E2%80%9C%E8%B5%84%E6%BA%90%E7%BA%A6%E6%9D%9F%E2%80%9D"><span class="toc-number">1.2.2.</span> <span class="toc-text">2. Cgroup：实现“资源约束”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-UnionFS%EF%BC%9A%E5%AE%9E%E7%8E%B0%E2%80%9C%E9%95%9C%E5%83%8F%E5%88%86%E5%B1%82%E2%80%9D"><span class="toc-number">1.2.3.</span> <span class="toc-text">3. UnionFS：实现“镜像分层”</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例">高级运行时——以 Containerd 和 CRI - O 为例</a><time datetime="2025-09-07T04:00:00.000Z" title="发表于 2025-09-07 12:00:00">2025-09-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000106/" title="低级运行时——以 runc 为例">低级运行时——以 runc 为例</a><time datetime="2025-09-02T04:00:00.000Z" title="发表于 2025-09-02 12:00:00">2025-09-02</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000105/" title="容器运行时概述">容器运行时概述</a><time datetime="2025-08-29T04:00:00.000Z" title="发表于 2025-08-29 12:00:00">2025-08-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000100/">http://zmty365.github.io/posts/1000100/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-02</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a><a class="pagination-related" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-07</div><div class="info-item-2">高级运行时——以 Containerd 和 CRI - O 为例</div></div><div class="info-2"><div class="info-item-1">高级运行时——以 Containerd 和 CRI - O 为例 本文难度系数较大，以containerd为例介绍了高级运行时最重要的功能，高级运行时向下和OCI规范、低级运行时相关，向上和镜像拉取、镜像存储相关，建议结合相关知识点食用，多做实验加深理解。  一、高级运行时回顾：高级运行时 vs 低级运行时首先，回顾一下两个关键概念：  低级运行时 (Low-Level Runtime)： 职责：直接与操作系统内核交互，负责最底层的操作，即创建和运行容器进程。它接收一个包含了 rootfs 路径和配置的 JSON 文件（OCI runtime-spec），然后调用 clone、unshare 等系统调用去启动一个具有正确隔离（namespace、cgroups）的进程。 代表：runc（是 OCI 标准的参考实现）、runhcs（用于 Windows）、crun、kata-runtime。   高级运行时 (High-Level Runtime)： 职责：管理容器的整个生命周期。包括镜像的传输、管理、解压、文件系统快照的维护，以及最终调用低级运行时会执行容器。它解决了“如何从镜像...</div></div></div></a><a class="pagination-related" href="/posts/1000105/" title="容器运行时概述"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-29</div><div class="info-item-2">容器运行时概述</div></div><div class="info-2"><div class="info-item-1">容器运行时概述 本文简单讲解了容器运行时。  一、容器运行时的核心定义容器运行时是管理容器全生命周期（加载镜像、创建隔离环境、启动&#x2F;停止&#x2F;销毁容器、监控资源）的软件组件，核心目标是：  实现容器与宿主机的资源隔离（依赖内核能力或虚拟化技术）； 简化容器的部署与管理，确保兼容性（如遵循 OCI 规范）。  其本质是“运行容器的工具链”，按功能复杂度和隔离技术，可分为 低级运行时、高级运行时、沙盒&#x2F;虚拟化运行时 三类。 二、三类容器运行时的详细解析1. 低级运行时（Low-level Runtime） 核心定位：遵循 OCI 运行时规范的“最小执行引擎”，仅负责将 rootfs + config.json 转换为隔离进程，不处理上层复杂逻辑。 核心能力（与你补充内容一致）： 依赖 Linux 内核的 Namespace（实现进程、网络、UTS 等隔离）和 CGroup（限制 CPU&#x2F;内存&#x2F;IO 资源）； 加载 rootfs（需外部提供，自身不处理镜像），执行容器内初始化进程（如 /bin/bash）； 不包含镜像管理、网络&#x2F;...</div></div></div></a><a class="pagination-related" href="/posts/1000103/" title="Cgroups"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-24</div><div class="info-item-2">Cgroups</div></div><div class="info-2"><div class="info-item-1">Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。 cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是取消子系统拆分、采用统一目录结构，所有资源管控逻辑集中在 /sys/fs/cgroup 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。  cgroup简介什么是cgroupcgroup 是 “control group” 的缩写，并且首字母永远不大写。cgroup 是一种以 hierarchical (树形层级)方式组织进程...</div></div></div></a><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-27</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">容器概述</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E6%98%AF%E4%BB%80%E4%B9%88"><span class="toc-number">1.1.</span> <span class="toc-text">容器是什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Docker-%E7%9A%84%E5%AE%9E%E7%8E%B0%E5%8E%9F%E7%90%86"><span class="toc-number">1.2.</span> <span class="toc-text">Docker 的实现原理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Namespace"><span class="toc-number">1.3.</span> <span class="toc-text">Namespace</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-PID-Namespace%EF%BC%88%E8%BF%9B%E7%A8%8B%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.1.</span> <span class="toc-text">1. PID Namespace（进程命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Net-Namespace%EF%BC%88%E7%BD%91%E7%BB%9C%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.2.</span> <span class="toc-text">2. Net Namespace（网络命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-IPC-Namespace%EF%BC%88%E8%BF%9B%E7%A8%8B%E9%97%B4%E9%80%9A%E4%BF%A1%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.3.</span> <span class="toc-text">3. IPC Namespace（进程间通信命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-Mnt-Namespace%EF%BC%88%E6%8C%82%E8%BD%BD%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.4.</span> <span class="toc-text">4. Mnt Namespace（挂载命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-UTS-Namespace%EF%BC%88%E4%B8%BB%E6%9C%BA%E5%90%8D%E5%92%8C%E5%9F%9F%E5%90%8D%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.5.</span> <span class="toc-text">5. UTS Namespace（主机名和域名命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-User-Namespace%EF%BC%88%E7%94%A8%E6%88%B7%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.6.</span> <span class="toc-text">6. User Namespace（用户命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-Cgroup-Namespace%EF%BC%88Cgroup-%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">1.3.7.</span> <span class="toc-text">7. Cgroup Namespace（Cgroup 命名空间）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Cgroup"><span class="toc-number">1.4.</span> <span class="toc-text">Cgroup</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Core%EF%BC%88%E6%A0%B8%E5%BF%83%EF%BC%89"><span class="toc-number">1.4.1.</span> <span class="toc-text">Core（核心）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#hierarchy%EF%BC%88%E5%B1%82%E7%BA%A7%E7%BB%93%E6%9E%84%EF%BC%89"><span class="toc-number">1.4.2.</span> <span class="toc-text">hierarchy（层级结构）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Controller%EF%BC%88%E6%8E%A7%E5%88%B6%E5%99%A8%EF%BC%89-Subsystem%EF%BC%88%E5%AD%90%E7%B3%BB%E7%BB%9F%EF%BC%89"><span class="toc-number">1.4.3.</span> <span class="toc-text">Controller（控制器）&#x2F; Subsystem（子系统）</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E8%81%94%E5%90%88%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F-UnionFS"><span class="toc-number">1.5.</span> <span class="toc-text">联合文件系统 UnionFS</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E4%BB%80%E4%B9%88%E6%98%AF%E8%81%94%E5%90%88%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F-UnionFS%EF%BC%9F"><span class="toc-number">1.5.1.</span> <span class="toc-text">1. 什么是联合文件系统 UnionFS？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E8%81%94%E5%90%88%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E5%9C%A8-Docker-%E4%B8%AD%E7%9A%84%E4%BD%9C%E7%94%A8"><span class="toc-number">1.5.2.</span> <span class="toc-text">2. 联合文件系统在 Docker 中的作用</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%81%94%E5%90%88%E6%96%87%E4%BB%B6%E7%B3%BB%E7%BB%9F%E7%9A%84%E4%BC%98%E5%8A%BF"><span class="toc-number">1.5.3.</span> <span class="toc-text">3. 联合文件系统的优势</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%EF%BC%9A%E5%85%B8%E5%9E%8B-Linux-vs-Docker-%E5%AE%B9%E5%99%A8"><span class="toc-number">1.6.</span> <span class="toc-text">启动过程：典型 Linux vs Docker 容器</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%85%B8%E5%9E%8B%E7%9A%84-Linux-%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B"><span class="toc-number">1.6.1.</span> <span class="toc-text">1. 典型的 Linux 启动过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Docker-%E5%AE%B9%E5%99%A8%E7%9A%84%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B"><span class="toc-number">1.6.2.</span> <span class="toc-text">2. Docker 容器的启动过程</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-Docker-%E5%AE%B9%E5%99%A8%E4%B8%8E%E5%85%B8%E5%9E%8B-Linux-%E5%90%AF%E5%8A%A8%E8%BF%87%E7%A8%8B%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="toc-number">1.6.3.</span> <span class="toc-text">3. Docker 容器与典型 Linux 启动过程的区别</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Docker-%E7%9A%84%E5%AD%98%E5%82%A8%E9%A9%B1%E5%8A%A8%E6%BC%94%E8%BF%9B"><span class="toc-number">1.7.</span> <span class="toc-text">Docker 的存储驱动演进</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-AUFS"><span class="toc-number">1.7.1.</span> <span class="toc-text">1. AUFS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-OverlayFS"><span class="toc-number">1.7.2.</span> <span class="toc-text">2. OverlayFS</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-Device-Mapper"><span class="toc-number">1.7.3.</span> <span class="toc-text">3. Device Mapper</span></a></li></ol></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例">高级运行时——以 Containerd 和 CRI - O 为例</a><time datetime="2025-09-07T04:00:00.000Z" title="发表于 2025-09-07 12:00:00">2025-09-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000106/" title="低级运行时——以 runc 为例">低级运行时——以 runc 为例</a><time datetime="2025-09-02T04:00:00.000Z" title="发表于 2025-09-02 12:00:00">2025-09-02</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000105/" title="容器运行时概述">容器运行时概述</a><time datetime="2025-08-29T04:00:00.000Z" title="发表于 2025-08-29 12:00:00">2025-08-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
   .footer {
     text-align: center;
     position: relative;
