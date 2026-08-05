@@ -1,0 +1,889 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes 节点异常状态与污点 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="Kubernetes 节点异常状态与污点当一个节点出问题时，kubectl get nodes 会看到它变成 NotReady 或 SchedulingDisabled。这些状态不是孤立的——Kubernetes 会根据节点状态自动给节点打上污点（Taint），从而控制 Pod 的调度与驱逐。本文先讲清两种异常状态的成因，再讲三种系统内置污点，最后把状态与污点的对应关系串起来。 一、NotRead">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes 节点异常状态与污点">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000210/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="Kubernetes 节点异常状态与污点当一个节点出问题时，kubectl get nodes 会看到它变成 NotReady 或 SchedulingDisabled。这些状态不是孤立的——Kubernetes 会根据节点状态自动给节点打上污点（Taint），从而控制 Pod 的调度与驱逐。本文先讲清两种异常状态的成因，再讲三种系统内置污点，最后把状态与污点的对应关系串起来。 一、NotRead">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-05T05:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:17:02.136Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="污点">
+<meta property="article:tag" content="调度">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes 节点异常状态与污点",
+  "url": "http://zmty365.github.io/posts/1000210/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-05T05:00:00.000Z",
+  "dateModified": "2026-08-05T13:17:02.136Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000210/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes 节点异常状态与污点',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes 节点异常状态与污点</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes 节点异常状态与污点</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-05T05:00:00.000Z" title="发表于 2026-08-05 13:00:00">2026-08-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">2.2k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>7分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Kubernetes-节点异常状态与污点"><a href="#Kubernetes-节点异常状态与污点" class="headerlink" title="Kubernetes 节点异常状态与污点"></a>Kubernetes 节点异常状态与污点</h1><p>当一个节点出问题时，<code>kubectl get nodes</code> 会看到它变成 <code>NotReady</code> 或 <code>SchedulingDisabled</code>。这些状态不是孤立的——Kubernetes 会根据节点状态<strong>自动给节点打上污点（Taint）</strong>，从而控制 Pod 的调度与驱逐。本文先讲清两种异常状态的成因，再讲三种系统内置污点，最后把状态与污点的对应关系串起来。</p>
+<h2 id="一、NotReady：节点状态为-NotReady-的原因"><a href="#一、NotReady：节点状态为-NotReady-的原因" class="headerlink" title="一、NotReady：节点状态为 NotReady 的原因"></a>一、NotReady：节点状态为 NotReady 的原因</h2><h3 id="0-常见原因：Kubelet-挂掉"><a href="#0-常见原因：Kubelet-挂掉" class="headerlink" title="0. 常见原因：Kubelet 挂掉"></a>0. 常见原因：Kubelet 挂掉</h3><p>判断方法：</p>
+<ul>
+<li>登录到节点：<code>ssh root@11.127.211.13</code></li>
+<li>检查 Kubelet 进程：<code>ps -ef | grep &#39;kubelet&#39;</code></li>
+</ul>
+<h3 id="1-网络问题"><a href="#1-网络问题" class="headerlink" title="1. 网络问题"></a>1. 网络问题</h3><p><strong>网络连接中断</strong>：</p>
+<ul>
+<li>节点与 API 服务器之间的网络连接不稳定或中断，会导致节点无法正常向 API 服务器汇报状态。</li>
+<li>例如网络设备故障、网络配置错误等，使得 Kubelet 无法与 API 服务器进行通信。</li>
+</ul>
+<p><strong>网络插件故障</strong>：</p>
+<ul>
+<li>Kubernetes 的网络插件（如 Calico、Flannel 等）出现问题，会影响节点之间的网络通信以及 Pod 的网络功能。</li>
+<li>例如网络插件配置错误、网络插件服务崩溃等，都可能导致节点状态变为 NotReady。</li>
+</ul>
+<h3 id="2-Kubelet-服务问题"><a href="#2-Kubelet-服务问题" class="headerlink" title="2. Kubelet 服务问题"></a>2. Kubelet 服务问题</h3><p><strong>Kubelet 未运行</strong>：</p>
+<ul>
+<li>Kubelet 是节点上负责管理 Pod 的核心组件，如果 Kubelet 服务未启动或异常停止，节点将无法正常与 API 服务器交互，从而显示为 NotReady。</li>
+</ul>
+<p><strong>Kubelet 配置错误</strong>：</p>
+<ul>
+<li>Kubelet 的配置文件（通常是 <code>/etc/kubernetes/kubelet.conf</code>）存在错误，可能会导致 Kubelet 无法正常工作。</li>
+<li>例如配置的 API 服务器地址错误、认证信息错误等。</li>
+</ul>
+<p><strong>Kubelet 资源不足</strong>：</p>
+<ul>
+<li>如果节点上的资源（如 CPU、内存）严重不足，Kubelet 可能无法正常运行，进而影响节点状态。</li>
+</ul>
+<h3 id="3-节点硬件问题"><a href="#3-节点硬件问题" class="headerlink" title="3. 节点硬件问题"></a>3. 节点硬件问题</h3><p><strong>磁盘空间不足</strong>：</p>
+<ul>
+<li>节点上的磁盘空间被占满，会导致 Kubelet 无法正常写入日志、存储容器镜像等，从而使节点状态变为 NotReady。</li>
+<li>可以通过 <code>df -h</code> 命令查看节点磁盘使用情况。</li>
+</ul>
+<p><strong>内存不足</strong>：</p>
+<ul>
+<li>节点内存耗尽，会影响 Kubelet 及其他系统进程的正常运行，导致节点状态异常。</li>
+<li>可以使用 <code>free -m</code> 命令查看节点内存使用情况。</li>
+</ul>
+<p><strong>硬件故障</strong>：</p>
+<ul>
+<li>节点的硬件设备（如硬盘、网卡、内存等）出现故障，也会导致节点无法正常工作，显示为 NotReady。</li>
+</ul>
+<h3 id="4-节点系统问题"><a href="#4-节点系统问题" class="headerlink" title="4. 节点系统问题"></a>4. 节点系统问题</h3><p><strong>操作系统异常</strong>：</p>
+<ul>
+<li>节点的操作系统出现问题，如内核崩溃、系统服务故障等，会影响 Kubelet 的正常运行，使节点状态变为 NotReady。</li>
+</ul>
+<p><strong>系统时间不同步</strong>：</p>
+<ul>
+<li>节点的系统时间与 API 服务器的时间差异过大，可能会导致认证和通信问题，从而影响节点状态。</li>
+</ul>
+<h2 id="二、SchedulingDisabled：节点状态为-SchedulingDisabled-的原因"><a href="#二、SchedulingDisabled：节点状态为-SchedulingDisabled-的原因" class="headerlink" title="二、SchedulingDisabled：节点状态为 SchedulingDisabled 的原因"></a>二、SchedulingDisabled：节点状态为 SchedulingDisabled 的原因</h2><h3 id="1-手动设置"><a href="#1-手动设置" class="headerlink" title="1. 手动设置"></a>1. 手动设置</h3><p>管理员可以使用 <code>kubectl cordon &lt;node-name&gt;</code> 命令将节点标记为不可调度，这样新的 Pod 将不会被调度到该节点上，节点状态会显示为 SchedulingDisabled。这通常用于在进行节点维护、升级等操作前，避免新的 Pod 被调度到该节点。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 设置节点不可调度</span></span><br><span class="line">kubectl cordon &lt;node-name&gt;</span><br><span class="line"></span><br><span class="line"><span class="comment"># 解除不可调度状态</span></span><br><span class="line">kubectl uncordon &lt;node-name&gt;</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-节点健康检查失败"><a href="#2-节点健康检查失败" class="headerlink" title="2. 节点健康检查失败"></a>2. 节点健康检查失败</h3><p>当节点的健康检查（如节点的心跳检查、资源可用性检查等）持续失败时，Kubernetes 可能会自动将节点标记为不可调度，以防止新的 Pod 被调度到可能存在问题的节点上。这种情况通常伴随着节点状态变为 NotReady。</p>
+<h3 id="3-资源耗尽"><a href="#3-资源耗尽" class="headerlink" title="3. 资源耗尽"></a>3. 资源耗尽</h3><p>如果节点上的资源（如 CPU、内存、磁盘等）严重不足，Kubernetes 可能会将节点标记为不可调度，避免新的 Pod 被调度到该节点，导致资源进一步紧张。</p>
+<h2 id="三、重新认识污点"><a href="#三、重新认识污点" class="headerlink" title="三、重新认识污点"></a>三、重新认识污点</h2><p>在 Kubernetes 中，污点（Taints）是应用于节点上的一种属性，它可以防止 Pod 被调度到具有特定污点的节点上，除非该 Pod 具有与之匹配的容忍度（Tolerations）。下面是三种最常见的、由系统自动添加的污点。</p>
+<h3 id="1-node-kubernetes-io-unreachable-NoExecute"><a href="#1-node-kubernetes-io-unreachable-NoExecute" class="headerlink" title="1. node.kubernetes.io&#x2F;unreachable:NoExecute"></a>1. node.kubernetes.io&#x2F;unreachable:NoExecute</h3><p><strong>污点键（Key）</strong>：</p>
+<ul>
+<li><code>node.kubernetes.io/unreachable</code> 是一个预定义的污点键，通常表示节点处于不可达状态。</li>
+<li>这可能是由于网络问题、节点故障或其他原因导致 Kubernetes 控制平面无法与该节点进行通信。</li>
+</ul>
+<p><strong>污点效果（Effect）</strong>：</p>
+<p><code>NoExecute</code> 是一种比较严格的污点效果，它有两个主要作用：</p>
+<ul>
+<li><strong>阻止调度</strong>：如果一个 Pod 没有容忍这个污点，它将不会被调度到具有该污点的节点上。</li>
+<li><strong>驱逐已有 Pod</strong>：如果一个节点被标记为 <code>node.kubernetes.io/unreachable:NoExecute</code>，且一个正在运行的 Pod 没有容忍这个污点，那么该 Pod 会被从节点上驱逐。</li>
+</ul>
+<p>不过，Kubernetes 会有一个默认的宽限期（通常是 5 分钟），在宽限期内如果节点恢复正常，Pod 不会被驱逐。这个宽限期由 Pod 容忍度中的 <code>tolerationSeconds</code> 控制，默认 300 秒——实际上 Kubernetes 会自动给每个 Pod 注入 <code>tolerationSeconds: 300</code> 的默认容忍，这就是”5 分钟”的由来。</p>
+<h3 id="2-node-kubernetes-io-unreachable-NoSchedule"><a href="#2-node-kubernetes-io-unreachable-NoSchedule" class="headerlink" title="2. node.kubernetes.io&#x2F;unreachable:NoSchedule"></a>2. node.kubernetes.io&#x2F;unreachable:NoSchedule</h3><p><strong>污点键（Key）</strong>：</p>
+<ul>
+<li>同样是 <code>node.kubernetes.io/unreachable</code>，表示节点不可达。</li>
+</ul>
+<p><strong>污点效果（Effect）</strong>：</p>
+<ul>
+<li><code>NoSchedule</code> 意味着如果一个 Pod 没有容忍这个污点，它将不会被调度到具有该污点的节点上。</li>
+<li>与 <code>NoExecute</code> 不同的是，<code>NoSchedule</code> 不会影响已经在该节点上运行的 Pod，它只对新的调度决策起作用。</li>
+</ul>
+<h3 id="3-node-kubernetes-io-unschedulable-NoSchedule"><a href="#3-node-kubernetes-io-unschedulable-NoSchedule" class="headerlink" title="3. node.kubernetes.io&#x2F;unschedulable:NoSchedule"></a>3. node.kubernetes.io&#x2F;unschedulable:NoSchedule</h3><p><strong>污点键（Key）</strong>：</p>
+<ul>
+<li><code>node.kubernetes.io/unschedulable</code> 是一个表示节点不可调度的预定义污点键。</li>
+<li>通常，当管理员使用 <code>kubectl cordon</code> 命令将节点标记为不可调度时，会自动给节点添加这个污点。</li>
+</ul>
+<p><strong>污点效果（Effect）</strong>：</p>
+<ul>
+<li><code>NoSchedule</code> 表明如果一个 Pod 没有容忍这个污点，它将不会被调度到具有该污点的节点上。</li>
+<li>已经在该节点上运行的 Pod 不会受到影响。</li>
+</ul>
+<h2 id="四、节点状态与污点的关系"><a href="#四、节点状态与污点的关系" class="headerlink" title="四、节点状态与污点的关系"></a>四、节点状态与污点的关系</h2><h3 id="节点状态-NotReady-与三种污点的关系"><a href="#节点状态-NotReady-与三种污点的关系" class="headerlink" title="节点状态 NotReady 与三种污点的关系"></a>节点状态 NotReady 与三种污点的关系</h3><p><strong>1. 节点因不可达导致 NotReady</strong></p>
+<ul>
+<li>当节点由于网络故障、Kubelet 服务异常等原因变得不可达时，Kubernetes 控制平面会给节点添加 <code>node.kubernetes.io/unreachable:NoExecute</code> 和 <code>node.kubernetes.io/unreachable:NoSchedule</code> 污点。</li>
+<li>这种情况下，节点状态通常会变为 NotReady，因为不可达意味着控制平面无法准确获取节点的状态信息，也不能保证节点能够正常运行 Pod。</li>
+<li><code>NoExecute</code> 污点不仅会阻止新 Pod 调度到该节点，还会驱逐节点上没有容忍此污点的现有 Pod。</li>
+<li><code>NoSchedule</code> 污点则主要阻止新 Pod 调度到该节点，但不影响已在节点上运行的 Pod。</li>
+</ul>
+<p><strong>2. 其他原因导致 NotReady</strong></p>
+<ul>
+<li>节点 NotReady 也可能由其他因素引起，如磁盘空间不足、内存耗尽、硬件故障等。</li>
+<li>在这些情况下，节点可能不会被添加 <code>node.kubernetes.io/unreachable</code> 相关的污点，但可能会被添加 <code>node.kubernetes.io/unschedulable:NoSchedule</code> 污点，以防止新的 Pod 被调度到可能存在问题的节点上。</li>
+</ul>
+<h3 id="节点状态-SchedulingDisabled-与三种污点的关系"><a href="#节点状态-SchedulingDisabled-与三种污点的关系" class="headerlink" title="节点状态 SchedulingDisabled 与三种污点的关系"></a>节点状态 SchedulingDisabled 与三种污点的关系</h3><p><strong>1. 手动设置导致 SchedulingDisabled</strong></p>
+<ul>
+<li>当管理员使用 <code>kubectl cordon &lt;node-name&gt;</code> 命令手动将节点标记为不可调度时，Kubernetes 会给节点添加 <code>node.kubernetes.io/unschedulable:NoSchedule</code> 污点，节点状态会变为 SchedulingDisabled。</li>
+<li>这是一种主动的操作，目的是在进行节点维护、升级等操作前，避免新的 Pod 被调度到该节点。</li>
+</ul>
+<p><strong>2. 节点健康问题导致 SchedulingDisabled</strong></p>
+<ul>
+<li>如果节点因为出现严重的健康问题（如不可达、资源耗尽等），Kubernetes 可能会自动将节点标记为不可调度，添加 <code>node.kubernetes.io/unschedulable:NoSchedule</code> 污点或 <code>node.kubernetes.io/unreachable</code> 相关污点，从而使节点状态变为 SchedulingDisabled。</li>
+<li>这样可以防止新的 Pod 被调度到可能无法正常工作的节点上，保障集群的稳定性。</li>
+</ul>
+<h3 id="关系一览"><a href="#关系一览" class="headerlink" title="关系一览"></a>关系一览</h3><pre><code class="highlight mermaid">graph TD
+    A[节点异常] --&gt; B&#123;什么原因?&#125;
+    B --&gt;|不可达&lt;br/&gt;网络/Kubelet故障| C[NotReady]
+    B --&gt;|资源耗尽/硬件故障| C
+    B --&gt;|管理员 cordon| D[SchedulingDisabled]
+    C --&gt; E[unreachable:NoExecute&lt;br/&gt;阻止调度 + 驱逐现有 Pod]
+    C --&gt; F[unreachable:NoSchedule&lt;br/&gt;仅阻止新调度]
+    D --&gt; G[unschedulable:NoSchedule&lt;br/&gt;仅阻止新调度]
+    C --&gt; G</code></pre>
+
+<h2 id="五、参考资料"><a href="#五、参考资料" class="headerlink" title="五、参考资料"></a>五、参考资料</h2><ul>
+<li>Kubernetes 官方文档：Taints and Tolerations — <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/">https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/</a></li>
+<li>Kubernetes 官方文档：Node Status — <a target="_blank" rel="noopener" href="https://kubernetes.io/docs/reference/node/node-status/">https://kubernetes.io/docs/reference/node/node-status/</a></li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000210/">http://zmty365.github.io/posts/1000210/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/%E8%B0%83%E5%BA%A6/">调度</a><a class="post-meta__tags" href="/tags/%E6%B1%A1%E7%82%B9/">污点</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000209/" title="Kubernetes 静态 Pod（Static Pod）详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes 静态 Pod（Static Pod）详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 静态 Pod（Static Pod）详解平常我们创建的 Pod 都要经过 API Server，由控制面统一调度和管理。但集群的核心组件（比如 API Server 自己）在集群还没起来时怎么办？这时就轮到静态 Pod 登场——它由 kubelet 直接管理，绕过 API Server，是集群自举（bootstrap）的关键机制。 一、静态 Pod 的定义静态 Pod 是由 kubelet 直接管理的 Pod，其配置文件通常存于节点特定目录。kubelet 定时扫描这些配置文件，依其内容创建、更新或删除 Pod。与经 API 服务器管理的 Pod（如 Deployment、DaemonSet 等）不同，静态 Pod 不受 Kubernetes 控制面直接管控。 静态 Pod 具有以下特点：  直接管理：由 kubelet 直接管理，无需依赖 API 服务器。 本地控制：kubelet 通过扫描配置文件目录实现对静态 Pod 的管理。 节点绑定：始终绑定在创建它的节点，不能跨节点调度。 配置简单：配置文件简单直接，但灵活性欠佳。  二、静态 Pod 的创建方式...</div></div></div></a><a class="pagination-related" href="/posts/1000206/" title="Kubernetes 存储：Volume、持久卷与配置容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes 存储：Volume、持久卷与配置容器</div></div><div class="info-2"><div class="info-item-1">Kubernetes 存储：Volume、持久卷与配置容器Kubernetes 支持很多类型的卷，一个 Pod 可以同时使用任意数目的卷。按生命周期可以分成两大类：  临时卷：生命周期与 Pod 相同。Pod 被删除时，卷也随之销毁。 持久卷：生命周期可以比 Pod 更长。Pod 不再存在时，Kubernetes 不会销毁持久卷。  需要注意的是：对于给定 Pod 中的任何类型的卷，在容器重启期间数据都不会丢失——因为卷的生命周期跟着 Pod 走，而不是跟着容器走。 graph TD     A[Volume 卷] --&gt; B[临时卷]     A --&gt; C[持久卷]     B --&gt; B1[emptyDir&lt;br/&gt;Pod 删除即清空]     C --&gt; C1[hostPath&lt;br/&gt;绑定宿主机目录]     C --&gt; C2[nfs&lt;br/&gt;网络文件系统]     C --&gt; C3[PV / PVC&lt;br/&gt;持久卷抽象]  一、VolumeemptyDir对于定义了 emptyDir ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 之 Pod 资源调度</div></div><div class="info-2"><div class="info-item-1">Kubernetes 之 Pod 资源调度一、Pod 资源调度总览API Server 在接受客户端提交的 Pod 对象创建请求后，会通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 这一创建 Pod 对象的调度过程中有 3 个阶段：节点预选、节点优选、节点选定，从而筛选出最佳的节点。  节点预选：基于一系列的预选规则对每个节点进行检查，将那些不符合条件的节点过滤掉，从而完成节点的预选。 节点优选：对预选出的节点进行优先级排序，以便选出最合适运行 Pod 对象的节点。 节点选定：从优先级排序结果中挑选出优先级最高的节点运行 Pod，当这类节点多于 1 个时，则进行随机选择。  预选策略实际上就是节点过滤器，例如节点标签必须能够匹配到 Pod 资源的标签选择器（MatchNodeSelector 实现的规则），以及 Pod 容器的资源请求量不能大于节点上剩余的可分配资源（PodFitsResources 规则）等等。执行预选操作时，调度器会逐一根据规则进行筛选，如果预选没能选定一个合适的节点，此时 Pod 会一直处于 Pending 状...</div></div></div></a><a class="pagination-related" href="/posts/1000209/" title="Kubernetes 静态 Pod（Static Pod）详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 静态 Pod（Static Pod）详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 静态 Pod（Static Pod）详解平常我们创建的 Pod 都要经过 API Server，由控制面统一调度和管理。但集群的核心组件（比如 API Server 自己）在集群还没起来时怎么办？这时就轮到静态 Pod 登场——它由 kubelet 直接管理，绕过 API Server，是集群自举（bootstrap）的关键机制。 一、静态 Pod 的定义静态 Pod 是由 kubelet 直接管理的 Pod，其配置文件通常存于节点特定目录。kubelet 定时扫描这些配置文件，依其内容创建、更新或删除 Pod。与经 API 服务器管理的 Pod（如 Deployment、DaemonSet 等）不同，静态 Pod 不受 Kubernetes 控制面直接管控。 静态 Pod 具有以下特点：  直接管理：由 kubelet 直接管理，无需依赖 API 服务器。 本地控制：kubelet 通过扫描配置文件目录实现对静态 Pod 的管理。 节点绑定：始终绑定在创建它的节点，不能跨节点调度。 配置简单：配置文件简单直接，但灵活性欠佳。  二、静态 Pod 的创建方式...</div></div></div></a><a class="pagination-related" href="/posts/1000212/" title="Kubernetes Deployment 更新策略最全解析"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Deployment 更新策略最全解析</div></div><div class="info-2"><div class="info-item-1">一、Deployment 更新策略详解Kubernetes Deployment 提供了两种主要的更新策略：滚动更新（RollingUpdate）和重建更新（Recreate）。下面详细介绍这两种策略，特别是滚动更新的相关参数。 1. 重建更新（Recreate）重建更新策略是最简单的更新方式。 工作原理：  首先删除所有旧的 Pod。 然后一次性创建所有新的 Pod。  特点：  更新期间服务会有短暂不可用。 资源使用效率高，因为不会同时运行新旧版本。 适合开发环境或可以容忍短暂中断的场景。  配置示例： 12strategy:  type: Recreate  2. 滚动更新（RollingUpdate）滚动更新策略是默认的更新策略，它能够实现零停机更新。 工作原理：  逐步用新 Pod 替换旧 Pod。 始终保持一定数量的 Pod 在运行。 确保服务在整个更新过程中都可用。  特点：  更新过程平滑，服务不中断。 需要更多资源，因为新旧版本会同时运行一段时间。 支持健康检查，确保新版本稳定后再继续更新。  滚动更新的两个关键参数 maxUnavailable（最大不可用数）...</div></div></div></a><a class="pagination-related" href="/posts/1000207/" title="Kubernetes hostPath 卷详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes hostPath 卷详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes hostPath 卷详解 本文是《存储：Volume、持久卷与配置容器》中 hostPath 小节的深入展开，聚焦生产实践中的用法、安全风险与排障。  一、基本概念hostPath 是 Kubernetes 提供的一种卷类型，它允许将宿主机的文件系统路径挂载到 Pod 中。这使得 Pod 能够直接访问宿主机上的文件、目录或设备。 正因为它直接打通了容器与宿主机的文件系统边界，hostPath 既强大又危险——用对了是日志采集、节点监控的利器，用错了会带来严重的安全风险（后文详述）。 二、核心用途 访问宿主机系统日志：如 /var/log。 访问节点特定数据：如节点配置、证书等。 开发调试：在开发环境中快速访问宿主机文件。 特殊系统组件：如监控代理、日志收集器等需要访问宿主机资源的组件。  三、配置语法12345volumes:  - name: volume-name    hostPath:      path: &quot;/absolute/path/on/host&quot;    # 必须是宿主机上的绝对路径      type: Director...</div></div></div></a><a class="pagination-related" href="/posts/1000211/" title="Kubernetes Endpoint 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Endpoint 详解</div></div><div class="info-2"><div class="info-item-1">一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint 的主要作用是将 Service 与后端 Pod 关联起来。当一个 Service 被创建时，Kubernetes 会自动创建对应的 Endpoint，将 Service 的流量分发到后端 Pod。它就像是一座桥梁，连接了抽象的服务访问入口（Service）和实际提供服务的工作负载（Pod），确保服务请求能够被正确地路由到可用的 Pod 实例上，实现了服务的高可用性和负载均衡。 二、Endpoint 的创建与管理（一）自动创建在 Kubernetes 中，Endpoint 通常是自动创建的。当创建一个 Service 时，Kubernetes 会根据 Service 的选择器（Select...</div></div></div></a><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Kubernetes-%E8%8A%82%E7%82%B9%E5%BC%82%E5%B8%B8%E7%8A%B6%E6%80%81%E4%B8%8E%E6%B1%A1%E7%82%B9"><span class="toc-number">1.</span> <span class="toc-text">Kubernetes 节点异常状态与污点</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81NotReady%EF%BC%9A%E8%8A%82%E7%82%B9%E7%8A%B6%E6%80%81%E4%B8%BA-NotReady-%E7%9A%84%E5%8E%9F%E5%9B%A0"><span class="toc-number">1.1.</span> <span class="toc-text">一、NotReady：节点状态为 NotReady 的原因</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#0-%E5%B8%B8%E8%A7%81%E5%8E%9F%E5%9B%A0%EF%BC%9AKubelet-%E6%8C%82%E6%8E%89"><span class="toc-number">1.1.1.</span> <span class="toc-text">0. 常见原因：Kubelet 挂掉</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E7%BD%91%E7%BB%9C%E9%97%AE%E9%A2%98"><span class="toc-number">1.1.2.</span> <span class="toc-text">1. 网络问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Kubelet-%E6%9C%8D%E5%8A%A1%E9%97%AE%E9%A2%98"><span class="toc-number">1.1.3.</span> <span class="toc-text">2. Kubelet 服务问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%8A%82%E7%82%B9%E7%A1%AC%E4%BB%B6%E9%97%AE%E9%A2%98"><span class="toc-number">1.1.4.</span> <span class="toc-text">3. 节点硬件问题</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E8%8A%82%E7%82%B9%E7%B3%BB%E7%BB%9F%E9%97%AE%E9%A2%98"><span class="toc-number">1.1.5.</span> <span class="toc-text">4. 节点系统问题</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81SchedulingDisabled%EF%BC%9A%E8%8A%82%E7%82%B9%E7%8A%B6%E6%80%81%E4%B8%BA-SchedulingDisabled-%E7%9A%84%E5%8E%9F%E5%9B%A0"><span class="toc-number">1.2.</span> <span class="toc-text">二、SchedulingDisabled：节点状态为 SchedulingDisabled 的原因</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E6%89%8B%E5%8A%A8%E8%AE%BE%E7%BD%AE"><span class="toc-number">1.2.1.</span> <span class="toc-text">1. 手动设置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E8%8A%82%E7%82%B9%E5%81%A5%E5%BA%B7%E6%A3%80%E6%9F%A5%E5%A4%B1%E8%B4%A5"><span class="toc-number">1.2.2.</span> <span class="toc-text">2. 节点健康检查失败</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E8%B5%84%E6%BA%90%E8%80%97%E5%B0%BD"><span class="toc-number">1.2.3.</span> <span class="toc-text">3. 资源耗尽</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E9%87%8D%E6%96%B0%E8%AE%A4%E8%AF%86%E6%B1%A1%E7%82%B9"><span class="toc-number">1.3.</span> <span class="toc-text">三、重新认识污点</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-node-kubernetes-io-unreachable-NoExecute"><span class="toc-number">1.3.1.</span> <span class="toc-text">1. node.kubernetes.io&#x2F;unreachable:NoExecute</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-node-kubernetes-io-unreachable-NoSchedule"><span class="toc-number">1.3.2.</span> <span class="toc-text">2. node.kubernetes.io&#x2F;unreachable:NoSchedule</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-node-kubernetes-io-unschedulable-NoSchedule"><span class="toc-number">1.3.3.</span> <span class="toc-text">3. node.kubernetes.io&#x2F;unschedulable:NoSchedule</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E8%8A%82%E7%82%B9%E7%8A%B6%E6%80%81%E4%B8%8E%E6%B1%A1%E7%82%B9%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.4.</span> <span class="toc-text">四、节点状态与污点的关系</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8A%82%E7%82%B9%E7%8A%B6%E6%80%81-NotReady-%E4%B8%8E%E4%B8%89%E7%A7%8D%E6%B1%A1%E7%82%B9%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.4.1.</span> <span class="toc-text">节点状态 NotReady 与三种污点的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%8A%82%E7%82%B9%E7%8A%B6%E6%80%81-SchedulingDisabled-%E4%B8%8E%E4%B8%89%E7%A7%8D%E6%B1%A1%E7%82%B9%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">1.4.2.</span> <span class="toc-text">节点状态 SchedulingDisabled 与三种污点的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E7%B3%BB%E4%B8%80%E8%A7%88"><span class="toc-number">1.4.3.</span> <span class="toc-text">关系一览</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-number">1.5.</span> <span class="toc-text">五、参考资料</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress">Kubernetes 网络：Service、Pod 通讯与 Ingress</a><time datetime="2026-08-05T13:00:00.000Z" title="发表于 2026-08-05 21:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解">Kubernetes 中容器创建的全流程详解</a><time datetime="2026-08-05T12:45:00.000Z" title="发表于 2026-08-05 20:45:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度">Kubernetes 之 Pod 资源调度</a><time datetime="2026-08-05T12:30:00.000Z" title="发表于 2026-08-05 20:30:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000202/" title="Kubernetes Pod 基础">Kubernetes Pod 基础</a><time datetime="2026-08-05T12:00:00.000Z" title="发表于 2026-08-05 20:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000201/" title="Kubernetes 中的 API 对象">Kubernetes 中的 API 对象</a><time datetime="2026-08-05T11:35:28.000Z" title="发表于 2026-08-05 19:35:28">2026-08-05</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || 'cf1befc346621c7e5be51d71cfa85843'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

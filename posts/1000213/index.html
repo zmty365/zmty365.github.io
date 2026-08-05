@@ -1,0 +1,859 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes 各类 Pod 控制器的更新策略 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes 各类 Pod 控制器的更新策略">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000213/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-05T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:33:53.134Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="DaemonSet">
+<meta property="article:tag" content="Deployment">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="StatefulSet">
+<meta property="article:tag" content="控制器">
+<meta property="article:tag" content="更新策略">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes 各类 Pod 控制器的更新策略",
+  "url": "http://zmty365.github.io/posts/1000213/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-05T02:00:00.000Z",
+  "dateModified": "2026-08-05T13:33:53.134Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000213/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes 各类 Pod 控制器的更新策略',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes 各类 Pod 控制器的更新策略</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes 各类 Pod 控制器的更新策略</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-05T02:00:00.000Z" title="发表于 2026-08-05 10:00:00">2026-08-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">1.2k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>4分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、概述"><a href="#一、概述" class="headerlink" title="一、概述"></a>一、概述</h2><p>Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。</p>
+<p>本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。</p>
+<pre><code class="highlight mermaid">graph TB
+    Start[需要更新应用] --&gt; Q&#123;应用形态&#125;
+    Q --&gt;|无状态| Dep[Deployment]
+    Q --&gt;|有状态| Sts[StatefulSet]
+    Q --&gt;|节点级守护进程| Ds[DaemonSet]
+    Q --&gt;|批处理任务| Job[Job / CronJob]
+    Dep --&gt; DepS[strategy: RollingUpdate / Recreate]
+    Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 / OnDelete]
+    Ds --&gt; DsS[updateStrategy: RollingUpdate 按节点 / OnDelete]
+    Job --&gt; JobS[直接替换 Pod 模板; CronJob 靠 concurrencyPolicy]</code></pre>
+
+<h2 id="二、Deployment（无状态应用）"><a href="#二、Deployment（无状态应用）" class="headerlink" title="二、Deployment（无状态应用）"></a>二、Deployment（无状态应用）</h2><p>Deployment 是用于管理无状态应用的控制器，它提供了强大的更新策略来确保应用的平稳升级。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">strategy:</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">RollingUpdate</span> <span class="string">|</span> <span class="string">Recreate</span></span><br><span class="line">    <span class="attr">rollingUpdate:</span></span><br><span class="line">      <span class="attr">maxUnavailable:</span> <span class="number">25</span><span class="string">%</span></span><br><span class="line">      <span class="attr">maxSurge:</span> <span class="number">25</span><span class="string">%</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>RollingUpdate（默认）：</strong> 采用滚动更新的方式，逐步替换旧的 Pod 实例。<code>maxUnavailable</code> 定义了在更新过程中不可用的 Pod 最大数量或百分比，<code>maxSurge</code> 则规定了超过期望 Pod 数量的最大 Pod 数量或百分比。</p>
+<p>例如，<code>maxUnavailable: 25%</code> 和 <code>maxSurge: 25%</code> 意味着在更新时，最多允许 25% 的 Pod 不可用，同时最多可以额外创建 25% 的 Pod 来进行更新操作。</p>
+<p><strong>Recreate：</strong> 先删除所有旧的 Pod 实例，然后再创建新的 Pod 实例。这种方式会导致应用有短暂的停机时间。</p>
+<p>适用场景：Web 应用、API 服务等无状态服务。</p>
+<h2 id="三、StatefulSet（有状态应用）"><a href="#三、StatefulSet（有状态应用）" class="headerlink" title="三、StatefulSet（有状态应用）"></a>三、StatefulSet（有状态应用）</h2><p>类似 Deployment 的 <code>strategy</code>，但更复杂，因为要维护 Pod 的顺序和稳定性。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">updateStrategy:</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">RollingUpdate</span> <span class="string">|</span> <span class="string">OnDelete</span></span><br><span class="line">    <span class="attr">rollingUpdate:</span></span><br><span class="line">      <span class="attr">partition:</span> <span class="number">2</span>  <span class="comment"># 控制分批更新（类似金丝雀发布）</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>RollingUpdate（默认）：</strong> 按 Pod 序号逆序（从最大序号开始）逐个更新。通过 <code>partition</code> 控制更新的范围（例如 <code>partition: 3</code> 表示只更新序号 ≥3 的 Pod）。</p>
+<p><strong>OnDelete：</strong> 手动删除 Pod 时才会触发更新（类似旧版 Deployment 行为）。</p>
+<p>适用场景：数据库（MySQL、MongoDB）、有状态服务（如 Kafka Broker）。</p>
+<h2 id="四、DaemonSet（节点级守护进程）"><a href="#四、DaemonSet（节点级守护进程）" class="headerlink" title="四、DaemonSet（节点级守护进程）"></a>四、DaemonSet（节点级守护进程）</h2><p>DaemonSet 没有 <code>strategy</code> 字段，但有类似的更新控制。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">updateStrategy:</span></span><br><span class="line">    <span class="attr">type:</span> <span class="string">RollingUpdate</span> <span class="string">|</span> <span class="string">OnDelete</span></span><br><span class="line">    <span class="attr">rollingUpdate:</span></span><br><span class="line">      <span class="attr">maxUnavailable:</span> <span class="number">1</span>  <span class="comment"># 类似 Deployment 的滚动更新</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>RollingUpdate（默认）：</strong> 逐个节点更新 DaemonSet Pod，<code>maxUnavailable</code> 控制并发更新的节点数。</p>
+<p><strong>OnDelete：</strong> 需手动删除 Pod 才会触发更新。</p>
+<p>适用场景：日志收集（Fluentd）、网络插件（Calico）。</p>
+<h2 id="五、Job-CronJob（批处理任务）"><a href="#五、Job-CronJob（批处理任务）" class="headerlink" title="五、Job &#x2F; CronJob（批处理任务）"></a>五、Job &#x2F; CronJob（批处理任务）</h2><p>Job &#x2F; CronJob 没有滚动更新策略，因为任务是短期运行的。</p>
+<p><strong>Job：</strong> 直接替换 Pod 模板，新 Job 会创建新 Pod。</p>
+<p><strong>CronJob：</strong> CronJob 依赖 <code>concurrencyPolicy</code> 字段来处理作业的并发执行情况，<code>concurrencyPolicy</code> 有以下几种取值：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">concurrencyPolicy:</span> <span class="string">Allow</span> <span class="string">|</span> <span class="string">Forbid</span> <span class="string">|</span> <span class="string">Replace</span></span><br><span class="line">  <span class="attr">schedule:</span> <span class="string">&quot;*/5 * * * *&quot;</span></span><br><span class="line">  <span class="attr">jobTemplate:</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">template:</span></span><br><span class="line">        <span class="attr">spec:</span></span><br><span class="line">          <span class="attr">containers:</span></span><br><span class="line">          <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">hello</span></span><br><span class="line">            <span class="attr">image:</span> <span class="string">busybox:1.28</span></span><br><span class="line">            <span class="attr">args:</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">/bin/sh</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">-c</span></span><br><span class="line">            <span class="bullet">-</span> <span class="string">date;</span> <span class="string">echo</span> <span class="string">Hello</span> <span class="string">from</span> <span class="string">the</span> <span class="string">Kubernetes</span> <span class="string">cluster</span></span><br><span class="line">          <span class="attr">restartPolicy:</span> <span class="string">OnFailure</span></span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>Allow（默认）：</strong> 允许并发执行作业。如果前一个作业还未完成，新的作业会同时启动执行。</li>
+<li><strong>Forbid：</strong> 禁止并发执行作业。如果前一个作业还未完成，新的作业会被跳过，直到前一个作业完成。</li>
+<li><strong>Replace：</strong> 用新的作业替换正在运行的作业。如果前一个作业还未完成，新的作业启动时，正在运行的作业会被终止。</li>
+</ul>
+<p>适用场景：一次性任务或定时任务。</p>
+<h2 id="六、ReplicaSet（Deployment-的底层控制器）"><a href="#六、ReplicaSet（Deployment-的底层控制器）" class="headerlink" title="六、ReplicaSet（Deployment 的底层控制器）"></a>六、ReplicaSet（Deployment 的底层控制器）</h2><p>ReplicaSet 本身没有 <code>strategy</code>，更新策略由 Deployment 控制。</p>
+<p>直接修改 ReplicaSet 的 Pod 模板不会触发滚动更新，必须通过 Deployment 操作。</p>
+<h2 id="七、对比总结"><a href="#七、对比总结" class="headerlink" title="七、对比总结"></a>七、对比总结</h2><table>
+<thead>
+<tr>
+<th>控制器</th>
+<th>类似 strategy 的字段</th>
+<th>更新行为</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Deployment</td>
+<td><code>spec.strategy</code></td>
+<td>滚动更新（RollingUpdate）或重建（Recreate）</td>
+<td>无状态服务（如 Web 应用）</td>
+</tr>
+<tr>
+<td>StatefulSet</td>
+<td><code>spec.updateStrategy</code></td>
+<td>按序号分批更新，支持分区控制</td>
+<td>有状态服务（如数据库）</td>
+</tr>
+<tr>
+<td>DaemonSet</td>
+<td><code>spec.updateStrategy</code></td>
+<td>按节点滚动更新</td>
+<td>节点级守护进程</td>
+</tr>
+<tr>
+<td>Job &#x2F; CronJob</td>
+<td>无</td>
+<td>直接替换 Pod，CronJob 依赖 <code>concurrencyPolicy</code> 控制并发</td>
+<td>批处理任务</td>
+</tr>
+<tr>
+<td>ReplicaSet</td>
+<td>无</td>
+<td>需通过 Deployment 控制</td>
+<td>一般不直接使用</td>
+</tr>
+</tbody></table>
+<h2 id="八、关键结论"><a href="#八、关键结论" class="headerlink" title="八、关键结论"></a>八、关键结论</h2><ul>
+<li><strong>Deployment 和 StatefulSet 提供了最接近 strategy 的精细控制。</strong> Deployment 适合无状态应用的滚动更新和重建操作，StatefulSet 则能保证有状态应用的有序更新。</li>
+<li><strong>DaemonSet 的更新策略较简单</strong>，仅支持滚动更新或手动触发，主要用于节点级守护进程的更新。</li>
+<li><strong>Job &#x2F; CronJob 无滚动更新</strong>，因为任务本质是短期运行，直接替换 Pod 模板即可，CronJob 可通过 <code>concurrencyPolicy</code> 控制并发执行。</li>
+<li>如果需要更灵活的更新策略（如蓝绿部署、金丝雀发布），通常需要结合 <strong>Ingress 流量控制</strong> 或 <strong>Argo Rollouts</strong> 等高级工具。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000213/">http://zmty365.github.io/posts/1000213/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/%E6%8E%A7%E5%88%B6%E5%99%A8/">控制器</a><a class="post-meta__tags" href="/tags/%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5/">更新策略</a><a class="post-meta__tags" href="/tags/Deployment/">Deployment</a><a class="post-meta__tags" href="/tags/StatefulSet/">StatefulSet</a><a class="post-meta__tags" href="/tags/DaemonSet/">DaemonSet</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000211/" title="Kubernetes Endpoint 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes Endpoint 详解</div></div><div class="info-2"><div class="info-item-1">一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint 的主要作用是将 Service 与后端 Pod 关联起来。当一个 Service 被创建时，Kubernetes 会自动创建对应的 Endpoint，将 Service 的流量分发到后端 Pod。它就像是一座桥梁，连接了抽象的服务访问入口（Service）和实际提供服务的工作负载（Pod），确保服务请求能够被正确地路由到可用的 Pod 实例上，实现了服务的高可用性和负载均衡。 二、Endpoint 的创建与管理（一）自动创建在 Kubernetes 中，Endpoint 通常是自动创建的。当创建一个 Service 时，Kubernetes 会根据 Service 的选择器（Select...</div></div></div></a><a class="pagination-related" href="/posts/1000208/" title="Kubernetes StatefulSet 与 Headless Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes StatefulSet 与 Headless Service</div></div><div class="info-2"><div class="info-item-1">Kubernetes StatefulSet 与 Headless Service无状态应用可以随意扩缩、随意重建，谁顶上都一样；但数据库、消息队列这类有状态应用不行——每个实例都有自己的身份和数据，重建后必须”还是原来那个”。Kubernetes 用 StatefulSet + Headless Service 这对组合来解决这个问题。本文先讲清 Headless Service，再讲它如何与 StatefulSet 协同。 一、Headless Service 介绍Headless Service（无头服务）是 Kubernetes 中的一种特殊 Service 类型，它不会为 Service 分配集群 IP（ClusterIP），也不做负载均衡或请求代理。 主要特点 无集群 IP：与常规 Service 不同，Headless Service 没有 ClusterIP 地址。 直接 DNS 解析：DNS 查询会返回所有匹配 Pod 的 IP 地址列表，而不是单个 Service IP。 每个 Pod 有独立 DNS 记录：每个 Pod 会获得一个唯一的、可解析的 DNS 名...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000212/" title="Kubernetes Deployment 更新策略最全解析"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Deployment 更新策略最全解析</div></div><div class="info-2"><div class="info-item-1">一、Deployment 更新策略详解Kubernetes Deployment 提供了两种主要的更新策略：滚动更新（RollingUpdate）和重建更新（Recreate）。下面详细介绍这两种策略，特别是滚动更新的相关参数。 1. 重建更新（Recreate）重建更新策略是最简单的更新方式。 工作原理：  首先删除所有旧的 Pod。 然后一次性创建所有新的 Pod。  特点：  更新期间服务会有短暂不可用。 资源使用效率高，因为不会同时运行新旧版本。 适合开发环境或可以容忍短暂中断的场景。  配置示例： 12strategy:  type: Recreate  2. 滚动更新（RollingUpdate）滚动更新策略是默认的更新策略，它能够实现零停机更新。 工作原理：  逐步用新 Pod 替换旧 Pod。 始终保持一定数量的 Pod 在运行。 确保服务在整个更新过程中都可用。  特点：  更新过程平滑，服务不中断。 需要更多资源，因为新旧版本会同时运行一段时间。 支持健康检查，确保新版本稳定后再继续更新。  滚动更新的两个关键参数 maxUnavailable（最大不可用数）...</div></div></div></a><a class="pagination-related" href="/posts/1000208/" title="Kubernetes StatefulSet 与 Headless Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes StatefulSet 与 Headless Service</div></div><div class="info-2"><div class="info-item-1">Kubernetes StatefulSet 与 Headless Service无状态应用可以随意扩缩、随意重建，谁顶上都一样；但数据库、消息队列这类有状态应用不行——每个实例都有自己的身份和数据，重建后必须”还是原来那个”。Kubernetes 用 StatefulSet + Headless Service 这对组合来解决这个问题。本文先讲清 Headless Service，再讲它如何与 StatefulSet 协同。 一、Headless Service 介绍Headless Service（无头服务）是 Kubernetes 中的一种特殊 Service 类型，它不会为 Service 分配集群 IP（ClusterIP），也不做负载均衡或请求代理。 主要特点 无集群 IP：与常规 Service 不同，Headless Service 没有 ClusterIP 地址。 直接 DNS 解析：DNS 查询会返回所有匹配 Pod 的 IP 地址列表，而不是单个 Service IP。 每个 Pod 有独立 DNS 记录：每个 Pod 会获得一个唯一的、可解析的 DNS 名...</div></div></div></a><a class="pagination-related" href="/posts/1000202/" title="Kubernetes Pod 基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Pod 基础</div></div><div class="info-2"><div class="info-item-1">Kubernetes Pod 基础一、Pod 是什么Pod 是 Kubernetes 中最小的可部署和可调度单元。一个 Pod 封装了一个或多个紧密关联的容器，这些容器共享同一份网络命名空间（Network Namespace）和存储卷（Volume），可以通过 localhost 相互通信。 之所以要有 Pod 这一层抽象，而不是直接调度容器，是因为现实中很多应用是”超亲密关系”的容器组合。例如一个主容器加一个负责收集日志的 Sidecar 容器，它们需要共享同一份文件和网络，必须被作为一个整体来调度、部署和扩缩容。 二、Pod 的生命周期与状态Pod 在其生命周期中会处于不同的阶段（Phase），这个状态记录在 status.phase 字段中。主要状态如下：    状态 含义    Pending Pod 已被 Kubernetes 接受，但还有容器未创建完成（如正在拉取镜像、等待调度）   Running Pod 已绑定到节点，所有容器都已创建，至少有一个容器仍在运行或正在启动&#x2F;重启   Succeeded Pod 中所有容器都已成功终止，且不会再重启   Fa...</div></div></div></a><a class="pagination-related" href="/posts/1000211/" title="Kubernetes Endpoint 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Endpoint 详解</div></div><div class="info-2"><div class="info-item-1">一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint 的主要作用是将 Service 与后端 Pod 关联起来。当一个 Service 被创建时，Kubernetes 会自动创建对应的 Endpoint，将 Service 的流量分发到后端 Pod。它就像是一座桥梁，连接了抽象的服务访问入口（Service）和实际提供服务的工作负载（Pod），确保服务请求能够被正确地路由到可用的 Pod 实例上，实现了服务的高可用性和负载均衡。 二、Endpoint 的创建与管理（一）自动创建在 Kubernetes 中，Endpoint 通常是自动创建的。当创建一个 Service 时，Kubernetes 会根据 Service 的选择器（Select...</div></div></div></a><a class="pagination-related" href="/posts/1000206/" title="Kubernetes 存储：Volume、持久卷与配置容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 存储：Volume、持久卷与配置容器</div></div><div class="info-2"><div class="info-item-1">Kubernetes 存储：Volume、持久卷与配置容器Kubernetes 支持很多类型的卷，一个 Pod 可以同时使用任意数目的卷。按生命周期可以分成两大类：  临时卷：生命周期与 Pod 相同。Pod 被删除时，卷也随之销毁。 持久卷：生命周期可以比 Pod 更长。Pod 不再存在时，Kubernetes 不会销毁持久卷。  需要注意的是：对于给定 Pod 中的任何类型的卷，在容器重启期间数据都不会丢失——因为卷的生命周期跟着 Pod 走，而不是跟着容器走。 graph TD     A[Volume 卷] --&gt; B[临时卷]     A --&gt; C[持久卷]     B --&gt; B1[emptyDir&lt;br/&gt;Pod 删除即清空]     C --&gt; C1[hostPath&lt;br/&gt;绑定宿主机目录]     C --&gt; C2[nfs&lt;br/&gt;网络文件系统]     C --&gt; C3[PV / PVC&lt;br/&gt;持久卷抽象]  一、VolumeemptyDir对于定义了 emptyDir ...</div></div></div></a><a class="pagination-related" href="/posts/1000201/" title="Kubernetes 中的 API 对象"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中的 API 对象</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中的 API 对象一、API 对象API 对象是 Kubernetes 集群中的管理操作单元。Kubernetes 集群系统每支持一项新功能、引入一项新技术，一定会引入对应的 API 对象来支持对该功能的管理操作。 每个 API 对象都有三大类属性：元数据 metadata、规范 spec 和状态 status。  元数据（metadata）：用来标识 API 对象。每个对象都至少有 3 个元数据：namespace、name 和 uid；除此以外还有各种各样的标签 labels，用来标识和匹配不同的对象。例如用户可以用标签 env 来区分不同的服务部署环境，分别用 env=dev、env=testing、env=production 来标识开发、测试、生产环境。 规范（spec）：描述用户期望 Kubernetes 集群中的分布式系统达到的理想状态。例如用户可以通过 Replication Controller 设置期望的 Pod 副本数为 3。 状态（status）：描述系统实际当前达到的状态。例如系统当前实际的 Pod 副本数为 2，那么 Replic...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">一、概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81Deployment%EF%BC%88%E6%97%A0%E7%8A%B6%E6%80%81%E5%BA%94%E7%94%A8%EF%BC%89"><span class="toc-number">2.</span> <span class="toc-text">二、Deployment（无状态应用）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81StatefulSet%EF%BC%88%E6%9C%89%E7%8A%B6%E6%80%81%E5%BA%94%E7%94%A8%EF%BC%89"><span class="toc-number">3.</span> <span class="toc-text">三、StatefulSet（有状态应用）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81DaemonSet%EF%BC%88%E8%8A%82%E7%82%B9%E7%BA%A7%E5%AE%88%E6%8A%A4%E8%BF%9B%E7%A8%8B%EF%BC%89"><span class="toc-number">4.</span> <span class="toc-text">四、DaemonSet（节点级守护进程）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81Job-CronJob%EF%BC%88%E6%89%B9%E5%A4%84%E7%90%86%E4%BB%BB%E5%8A%A1%EF%BC%89"><span class="toc-number">5.</span> <span class="toc-text">五、Job &#x2F; CronJob（批处理任务）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81ReplicaSet%EF%BC%88Deployment-%E7%9A%84%E5%BA%95%E5%B1%82%E6%8E%A7%E5%88%B6%E5%99%A8%EF%BC%89"><span class="toc-number">6.</span> <span class="toc-text">六、ReplicaSet（Deployment 的底层控制器）</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E5%AF%B9%E6%AF%94%E6%80%BB%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">七、对比总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AB%E3%80%81%E5%85%B3%E9%94%AE%E7%BB%93%E8%AE%BA"><span class="toc-number">8.</span> <span class="toc-text">八、关键结论</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress">Kubernetes 网络：Service、Pod 通讯与 Ingress</a><time datetime="2026-08-05T13:00:00.000Z" title="发表于 2026-08-05 21:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解">Kubernetes 中容器创建的全流程详解</a><time datetime="2026-08-05T12:45:00.000Z" title="发表于 2026-08-05 20:45:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度">Kubernetes 之 Pod 资源调度</a><time datetime="2026-08-05T12:30:00.000Z" title="发表于 2026-08-05 20:30:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000202/" title="Kubernetes Pod 基础">Kubernetes Pod 基础</a><time datetime="2026-08-05T12:00:00.000Z" title="发表于 2026-08-05 20:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000201/" title="Kubernetes 中的 API 对象">Kubernetes 中的 API 对象</a><time datetime="2026-08-05T11:35:28.000Z" title="发表于 2026-08-05 19:35:28">2026-08-05</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '31d7663cd3630907a4a5149d20e009dc'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

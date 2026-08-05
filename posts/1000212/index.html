@@ -1,0 +1,1153 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes Deployment 更新策略最全解析 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="一、Deployment 更新策略详解Kubernetes Deployment 提供了两种主要的更新策略：滚动更新（RollingUpdate）和重建更新（Recreate）。下面详细介绍这两种策略，特别是滚动更新的相关参数。 1. 重建更新（Recreate）重建更新策略是最简单的更新方式。 工作原理：  首先删除所有旧的 Pod。 然后一次性创建所有新的 Pod。  特点：  更新期间服务会">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes Deployment 更新策略最全解析">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000212/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="一、Deployment 更新策略详解Kubernetes Deployment 提供了两种主要的更新策略：滚动更新（RollingUpdate）和重建更新（Recreate）。下面详细介绍这两种策略，特别是滚动更新的相关参数。 1. 重建更新（Recreate）重建更新策略是最简单的更新方式。 工作原理：  首先删除所有旧的 Pod。 然后一次性创建所有新的 Pod。  特点：  更新期间服务会">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-05T01:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:31:33.818Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Deployment">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="RollingUpdate">
+<meta property="article:tag" content="更新策略">
+<meta property="article:tag" content="滚动更新">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes Deployment 更新策略最全解析",
+  "url": "http://zmty365.github.io/posts/1000212/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-05T01:00:00.000Z",
+  "dateModified": "2026-08-05T13:31:33.818Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000212/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes Deployment 更新策略最全解析',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes Deployment 更新策略最全解析</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes Deployment 更新策略最全解析</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-05T01:00:00.000Z" title="发表于 2026-08-05 09:00:00">2026-08-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">2.7k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>9分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、Deployment-更新策略详解"><a href="#一、Deployment-更新策略详解" class="headerlink" title="一、Deployment 更新策略详解"></a>一、Deployment 更新策略详解</h2><p>Kubernetes Deployment 提供了两种主要的更新策略：滚动更新（RollingUpdate）和重建更新（Recreate）。下面详细介绍这两种策略，特别是滚动更新的相关参数。</p>
+<h3 id="1-重建更新（Recreate）"><a href="#1-重建更新（Recreate）" class="headerlink" title="1. 重建更新（Recreate）"></a>1. 重建更新（Recreate）</h3><p>重建更新策略是最简单的更新方式。</p>
+<p><strong>工作原理</strong>：</p>
+<ul>
+<li>首先删除所有旧的 Pod。</li>
+<li>然后一次性创建所有新的 Pod。</li>
+</ul>
+<p><strong>特点</strong>：</p>
+<ul>
+<li>更新期间服务会有短暂不可用。</li>
+<li>资源使用效率高，因为不会同时运行新旧版本。</li>
+<li>适合开发环境或可以容忍短暂中断的场景。</li>
+</ul>
+<p><strong>配置示例</strong>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">strategy:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">Recreate</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="2-滚动更新（RollingUpdate）"><a href="#2-滚动更新（RollingUpdate）" class="headerlink" title="2. 滚动更新（RollingUpdate）"></a>2. 滚动更新（RollingUpdate）</h3><p>滚动更新策略是默认的更新策略，它能够实现零停机更新。</p>
+<p><strong>工作原理</strong>：</p>
+<ul>
+<li>逐步用新 Pod 替换旧 Pod。</li>
+<li>始终保持一定数量的 Pod 在运行。</li>
+<li>确保服务在整个更新过程中都可用。</li>
+</ul>
+<p><strong>特点</strong>：</p>
+<ul>
+<li>更新过程平滑，服务不中断。</li>
+<li>需要更多资源，因为新旧版本会同时运行一段时间。</li>
+<li>支持健康检查，确保新版本稳定后再继续更新。</li>
+</ul>
+<h4 id="滚动更新的两个关键参数"><a href="#滚动更新的两个关键参数" class="headerlink" title="滚动更新的两个关键参数"></a>滚动更新的两个关键参数</h4><ul>
+<li><strong>maxUnavailable（最大不可用数）</strong><ul>
+<li>定义：在更新过程中，允许不可用的 Pod 的最大数量或百分比。</li>
+<li>作用：控制更新速度，值越大更新越快但风险越高。</li>
+<li>示例值：数字（如 <code>1</code>）或百分比（如 <code>25%</code>）。</li>
+<li>默认值：<code>25%</code>。</li>
+</ul>
+</li>
+<li><strong>maxSurge（最大峰值数）</strong><ul>
+<li>定义：在更新过程中，允许创建的超过期望副本数的 Pod 的最大数量或百分比。</li>
+<li>作用：控制资源使用，值越大更新越快但消耗资源越多。</li>
+<li>示例值：数字（如 <code>1</code>）或百分比（如 <code>25%</code>）。</li>
+<li>默认值：<code>25%</code>。</li>
+</ul>
+</li>
+</ul>
+<p><strong>配置示例</strong>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">strategy:</span></span><br><span class="line">  <span class="attr">type:</span> <span class="string">RollingUpdate</span></span><br><span class="line">  <span class="attr">rollingUpdate:</span></span><br><span class="line">    <span class="attr">maxUnavailable:</span> <span class="number">1</span></span><br><span class="line">    <span class="attr">maxSurge:</span> <span class="number">1</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>滚动更新过程示例</strong>：</p>
+<p>假设有一个 Deployment 有 4 个副本（<code>replicas=4</code>），配置为 <code>maxUnavailable=1</code> 和 <code>maxSurge=1</code>：</p>
+<ol>
+<li>开始更新时，先创建 1 个新 Pod（由于 <code>maxSurge=1</code>，总数暂时变为 5）。</li>
+<li>当新 Pod 就绪后，终止 1 个旧 Pod（由于 <code>maxUnavailable=1</code>）。</li>
+<li>重复这个过程，直到所有旧 Pod 都被替换。</li>
+</ol>
+<p><strong>两种策略的选择建议</strong>：</p>
+<ul>
+<li>使用 <strong>RollingUpdate</strong>（滚动更新）：生产环境、需要高可用的服务、更新过程需要平滑过渡。</li>
+<li>使用 <strong>Recreate</strong>（重建更新）：开发或测试环境、应用程序不支持多版本并行运行、可以接受短暂的服务中断。</li>
+</ul>
+<p>滚动更新通过精细控制 <code>maxUnavailable</code> 和 <code>maxSurge</code> 参数，可以在更新速度和系统稳定性之间取得平衡。</p>
+<h2 id="二、Deployment-配置变更与生效机制"><a href="#二、Deployment-配置变更与生效机制" class="headerlink" title="二、Deployment 配置变更与生效机制"></a>二、Deployment 配置变更与生效机制</h2><p>在 Kubernetes 中，修改 Deployment 的配置是否要求重启 Pod，取决于你修改的具体字段。</p>
+<h3 id="关于更新策略变更"><a href="#关于更新策略变更" class="headerlink" title="关于更新策略变更"></a>关于更新策略变更</h3><p>修改更新策略（<code>spec.strategy</code>）：</p>
+<ul>
+<li>不需要重启现有 Pod 即可生效。</li>
+<li>新策略会在下一次更新时应用（如执行新的滚动更新时）。</li>
+<li>当前运行的 Pod 不会受到影响。</li>
+</ul>
+<h3 id="需要替换-Pod-才能生效的配置"><a href="#需要替换-Pod-才能生效的配置" class="headerlink" title="需要替换 Pod 才能生效的配置"></a>需要替换 Pod 才能生效的配置</h3><p>以下配置变更需要替换 Pod 才能生效：</p>
+<ul>
+<li><strong>镜像相关变更</strong>：<code>spec.template.spec.containers[*].image</code>（容器镜像版本）——这是最常见的需要重启的情况。</li>
+<li><strong>环境变量变更</strong>：<code>spec.template.spec.containers[*].env</code>、<code>spec.template.spec.containers[*].envFrom</code>。</li>
+<li><strong>资源配置变更</strong>：<code>spec.template.spec.containers[*].resources</code>（CPU &#x2F; 内存限制）。</li>
+<li><strong>卷挂载变更</strong>：<code>spec.template.spec.volumes</code>、<code>spec.template.spec.containers[*].volumeMounts</code>。</li>
+<li><strong>命令和参数变更</strong>：<code>spec.template.spec.containers[*].command</code>、<code>spec.template.spec.containers[*].args</code>。</li>
+</ul>
+<h3 id="不需要替换-Pod-的配置"><a href="#不需要替换-Pod-的配置" class="headerlink" title="不需要替换 Pod 的配置"></a>不需要替换 Pod 的配置</h3><p>以下配置变更通常不需要替换现有 Pod：</p>
+<ul>
+<li>副本数：<code>spec.replicas</code>。</li>
+<li>更新策略：<code>spec.strategy</code>。</li>
+<li>RollingUpdate 参数：<code>spec.strategy.rollingUpdate</code>。</li>
+<li>标签和选择器（如果选择器不变）。</li>
+<li>亲和性 &#x2F; 反亲和性规则：<code>spec.template.spec.affinity</code>。</li>
+</ul>
+<h2 id="三、配置更新可能的冲突"><a href="#三、配置更新可能的冲突" class="headerlink" title="三、配置更新可能的冲突"></a>三、配置更新可能的冲突</h2><p>在 Deployment 的配置中，存在一些可能与滚动更新参数（<code>maxUnavailable</code> 和 <code>maxSurge</code>）产生冲突或相互影响的配置。以下是需要特别注意的 7 类关键冲突点，以及它们的解决方案。</p>
+<h3 id="1-资源配额（Resource-Quotas）"><a href="#1-资源配额（Resource-Quotas）" class="headerlink" title="1. 资源配额（Resource Quotas）"></a>1. 资源配额（Resource Quotas）</h3><p><strong>冲突点</strong>：</p>
+<ul>
+<li><code>maxSurge</code> 创建的临时超额 Pod 可能触发资源配额限制（如 CPU &#x2F; Memory 配额）。</li>
+<li><code>maxUnavailable</code> 设置过大时，剩余 Pod 可能因资源不足无法处理流量。</li>
+</ul>
+<p><strong>解决方案</strong>：确保配额足够覆盖 <code>(replicas + maxSurge)</code> 的资源需求。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl <span class="built_in">set</span> resources deployment/my-app --limits=cpu=500m,memory=512Mi</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Pod-中断预算（PDB，PodDisruptionBudget）"><a href="#2-Pod-中断预算（PDB，PodDisruptionBudget）" class="headerlink" title="2. Pod 中断预算（PDB，PodDisruptionBudget）"></a>2. Pod 中断预算（PDB，PodDisruptionBudget）</h3><p><strong>冲突点</strong>：</p>
+<ul>
+<li>PDB 要求最小可用 Pod 数（如 <code>minAvailable: 80%</code>），可能与 <code>maxUnavailable</code> 冲突。</li>
+<li>若 <code>maxUnavailable &gt; (replicas - minAvailable)</code>，滚动更新会被阻塞。</li>
+</ul>
+<p><strong>解决方案</strong>：PDB 配置需兼容滚动更新参数。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">policy/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">PodDisruptionBudget</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">my-app-pdb</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">minAvailable:</span> <span class="number">60</span><span class="string">%</span>  <span class="comment"># 必须 ≥ (100% - maxUnavailable)</span></span><br><span class="line">  <span class="attr">selector:</span></span><br><span class="line">    <span class="attr">matchLabels:</span></span><br><span class="line">      <span class="attr">app:</span> <span class="string">my-app</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="3-HPA（Horizontal-Pod-Autoscaler）"><a href="#3-HPA（Horizontal-Pod-Autoscaler）" class="headerlink" title="3. HPA（Horizontal Pod Autoscaler）"></a>3. HPA（Horizontal Pod Autoscaler）</h3><p><strong>冲突点</strong>：</p>
+<ul>
+<li>HPA 在滚动更新期间可能因 <code>maxSurge</code> 触发的临时 Pod 数波动而误判负载。</li>
+<li>若 <code>maxUnavailable</code> 设置过高，HPA 扩容可能无法及时补偿可用性损失。</li>
+</ul>
+<p><strong>解决方案</strong>：为 HPA 设置稳定窗口（Kubernetes ≥ 1.18）。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">autoscaling/v2</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">HorizontalPodAutoscaler</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">behavior:</span></span><br><span class="line">    <span class="attr">scaleDown:</span></span><br><span class="line">      <span class="attr">stabilizationWindowSeconds:</span> <span class="number">300</span>  <span class="comment"># 避免因滚动更新误缩容</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="4-Readiness-Probe-配置"><a href="#4-Readiness-Probe-配置" class="headerlink" title="4. Readiness Probe 配置"></a>4. Readiness Probe 配置</h3><p><strong>冲突点</strong>：</p>
+<ul>
+<li>过于严格的 <code>readinessProbe</code>（如长初始化时间）会导致新 Pod 无法快速就绪，被持续计入不可用计数。</li>
+<li>可能造成滚动更新卡死（新 Pod 未就绪，旧 Pod 已被终止）。</li>
+</ul>
+<p><strong>解决方案</strong>：优化探针配置。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">containers:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">name:</span> <span class="string">app</span></span><br><span class="line">        <span class="attr">readinessProbe:</span></span><br><span class="line">          <span class="attr">initialDelaySeconds:</span> <span class="number">5</span>   <span class="comment"># 避免过长延迟</span></span><br><span class="line">          <span class="attr">periodSeconds:</span> <span class="number">5</span>         <span class="comment"># 适当提高检查频率</span></span><br><span class="line">          <span class="attr">failureThreshold:</span> <span class="number">3</span>      <span class="comment"># 允许短暂失败</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-节点亲和性-反亲和性（Affinity）"><a href="#5-节点亲和性-反亲和性（Affinity）" class="headerlink" title="5. 节点亲和性 &#x2F; 反亲和性（Affinity）"></a>5. 节点亲和性 &#x2F; 反亲和性（Affinity）</h3><p><strong>冲突点</strong>：</p>
+<ul>
+<li>严格的 <code>podAntiAffinity</code>（如 <code>requiredDuringSchedulingIgnoredDuringExecution</code>）可能导致 <code>maxSurge</code> 的 Pod 因节点资源不足无法调度。</li>
+<li>更新过程因调度失败而停滞。</li>
+</ul>
+<p><strong>解决方案</strong>：改用软约束（<code>preferredDuringScheduling</code>）。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">affinity:</span></span><br><span class="line">  <span class="attr">podAntiAffinity:</span></span><br><span class="line">    <span class="attr">preferredDuringSchedulingIgnoredDuringExecution:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">weight:</span> <span class="number">100</span></span><br><span class="line">      <span class="attr">podAffinityTerm:</span></span><br><span class="line">        <span class="attr">labelSelector:</span></span><br><span class="line">          <span class="attr">matchLabels:</span></span><br><span class="line">            <span class="attr">app:</span> <span class="string">my-app</span></span><br><span class="line">        <span class="attr">topologyKey:</span> <span class="string">kubernetes.io/hostname</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="6-Termination-Grace-Period"><a href="#6-Termination-Grace-Period" class="headerlink" title="6. Termination Grace Period"></a>6. Termination Grace Period</h3><p><strong>冲突点</strong>：过长的 <code>terminationGracePeriodSeconds</code> 会导致旧 Pod 退出缓慢，占用 <code>maxUnavailable</code> 配额，拖慢更新速度。</p>
+<p><strong>解决方案</strong>：合理设置终止宽限期。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">template:</span></span><br><span class="line">    <span class="attr">spec:</span></span><br><span class="line">      <span class="attr">terminationGracePeriodSeconds:</span> <span class="number">30</span>  <span class="comment"># 根据应用优雅退出需求调整</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="7-镜像拉取策略（Image-Pull-Policy）"><a href="#7-镜像拉取策略（Image-Pull-Policy）" class="headerlink" title="7. 镜像拉取策略（Image Pull Policy）"></a>7. 镜像拉取策略（Image Pull Policy）</h3><p><strong>冲突点</strong>：<code>imagePullPolicy: Always</code> 在每次更新时强制拉取镜像，可能导致 <code>maxSurge</code> Pod 因拉取延迟无法快速就绪。</p>
+<p><strong>解决方案</strong>：生产环境推荐使用固定版本标签 + <code>IfNotPresent</code>。</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">containers:</span></span><br><span class="line"><span class="bullet">-</span> <span class="attr">name:</span> <span class="string">app</span></span><br><span class="line">  <span class="attr">image:</span> <span class="string">my-app:v1.2.3</span>  <span class="comment"># 避免使用 latest</span></span><br><span class="line">  <span class="attr">imagePullPolicy:</span> <span class="string">IfNotPresent</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="冲突检测与调试技巧"><a href="#冲突检测与调试技巧" class="headerlink" title="冲突检测与调试技巧"></a>冲突检测与调试技巧</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查滚动更新状态</span></span><br><span class="line">kubectl rollout status deployment/my-app</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看阻塞事件</span></span><br><span class="line">kubectl describe deployment/my-app | grep -A 10 <span class="string">&quot;Events&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 模拟更新测试</span></span><br><span class="line">kubectl <span class="built_in">set</span> image deployment/my-app app=my-app:<span class="built_in">test</span> --dry-run=server</span><br></pre></td></tr></table></figure>
+
+<h3 id="配置兼容性检查表"><a href="#配置兼容性检查表" class="headerlink" title="配置兼容性检查表"></a>配置兼容性检查表</h3><table>
+<thead>
+<tr>
+<th>配置项</th>
+<th>冲突风险</th>
+<th>检查方法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>资源配额</td>
+<td>maxSurge 超限</td>
+<td><code>kubectl describe quota</code></td>
+</tr>
+<tr>
+<td>PDB</td>
+<td>maxUnavailable 超出 PDB 约束</td>
+<td><code>kubectl get pdb</code></td>
+</tr>
+<tr>
+<td>HPA</td>
+<td>更新期间误触发扩缩容</td>
+<td><code>kubectl describe hpa</code></td>
+</tr>
+<tr>
+<td>Readiness Probe</td>
+<td>新 Pod 就绪慢导致更新卡住</td>
+<td><code>kubectl get pods -w</code></td>
+</tr>
+<tr>
+<td>节点亲和性</td>
+<td>maxSurge Pod 无法调度</td>
+<td><code>kubectl get events --field-selector=reason=FailedScheduling</code></td>
+</tr>
+</tbody></table>
+<h2 id="四、滚动更新参数（maxUnavailable-maxSurge）深入"><a href="#四、滚动更新参数（maxUnavailable-maxSurge）深入" class="headerlink" title="四、滚动更新参数（maxUnavailable &#x2F; maxSurge）深入"></a>四、滚动更新参数（maxUnavailable &#x2F; maxSurge）深入</h2><h3 id="1-参数基础定义"><a href="#1-参数基础定义" class="headerlink" title="1. 参数基础定义"></a>1. 参数基础定义</h3><p><strong>maxUnavailable（最大不可用数）</strong>：</p>
+<ul>
+<li>作用：控制更新期间允许不可用的 Pod 数量。</li>
+<li>格式：整数（如 <code>1</code>）或百分比字符串（如 <code>&quot;25%&quot;</code>）。</li>
+<li>默认值：<code>25%</code>。</li>
+<li>效果：保证服务的最低可用性。</li>
+</ul>
+<p><strong>maxSurge（最大峰值数）</strong>：</p>
+<ul>
+<li>作用：控制可创建的超出期望副本数的 Pod 数量。</li>
+<li>格式：整数（如 <code>1</code>）或百分比字符串（如 <code>&quot;25%&quot;</code>）。</li>
+<li>默认值：<code>25%</code>。</li>
+<li>效果：控制资源使用和更新速度。</li>
+</ul>
+<h3 id="2-取值范围与边界情况"><a href="#2-取值范围与边界情况" class="headerlink" title="2. 取值范围与边界情况"></a>2. 取值范围与边界情况</h3><p><strong>合法取值范围</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>最小值</th>
+<th>最大值</th>
+<th>特殊值</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>maxUnavailable</td>
+<td>0</td>
+<td>无上限</td>
+<td>100%</td>
+</tr>
+<tr>
+<td>maxSurge</td>
+<td>0</td>
+<td>无上限</td>
+<td>100%</td>
+</tr>
+</tbody></table>
+<p><strong>数学约束条件</strong>：<code>maxUnavailable + maxSurge &gt; 0</code>，即两者不能同时为 0，至少一个参数必须大于 0。</p>
+<h3 id="3-特殊值行为分析"><a href="#3-特殊值行为分析" class="headerlink" title="3. 特殊值行为分析"></a>3. 特殊值行为分析</h3><p><strong>设置为 100%</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>设置值</th>
+<th>行为表现</th>
+<th>适用场景</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>maxUnavailable</td>
+<td>100%</td>
+<td>类似 Recreate 策略，先删后建</td>
+<td>不支持多版本并行的场景</td>
+</tr>
+<tr>
+<td>maxSurge</td>
+<td>100%</td>
+<td>先建后删，资源翻倍</td>
+<td>零停机更新</td>
+</tr>
+</tbody></table>
+<p><strong>设置为 &gt; 100%</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>设置值</th>
+<th>实际计算</th>
+<th>最终效果</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>maxUnavailable</td>
+<td>1000%</td>
+<td>ceil(副本数 × 10)</td>
+<td>等同于 100%</td>
+</tr>
+<tr>
+<td>maxSurge</td>
+<td>1000%</td>
+<td>ceil(副本数 × 10)</td>
+<td>受限于实际资源</td>
+</tr>
+</tbody></table>
+<p><strong>设置为 0</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数组合</th>
+<th>行为表现</th>
+<th>要求</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>maxUnavailable&#x3D;0</td>
+<td>零停机更新</td>
+<td>maxSurge ≥ 1</td>
+</tr>
+<tr>
+<td>maxSurge&#x3D;0</td>
+<td>逐个替换</td>
+<td>maxUnavailable ≥ 1</td>
+</tr>
+<tr>
+<td>两者&#x3D;0</td>
+<td>报错不执行</td>
+<td>不允许</td>
+</tr>
+</tbody></table>
+<h3 id="4-格式要求与校验规则"><a href="#4-格式要求与校验规则" class="headerlink" title="4. 格式要求与校验规则"></a>4. 格式要求与校验规则</h3><p><strong>合法格式</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>格式类型</th>
+<th>示例</th>
+<th>是否合法</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>整数</td>
+<td><code>maxUnavailable: 1</code></td>
+<td>合法</td>
+</tr>
+<tr>
+<td>百分比字符串</td>
+<td><code>maxSurge: &quot;25%&quot;</code></td>
+<td>合法</td>
+</tr>
+<tr>
+<td>小数百分比</td>
+<td><code>maxUnavailable: &quot;20.5%&quot;</code></td>
+<td>合法</td>
+</tr>
+</tbody></table>
+<p><strong>非法格式</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>格式类型</th>
+<th>示例</th>
+<th>错误提示</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>小数数值</td>
+<td><code>maxSurge: 1.5</code></td>
+<td>must be integer or percentage</td>
+</tr>
+<tr>
+<td>未加引号百分比</td>
+<td><code>maxUnavailable: 50%</code></td>
+<td>语法错误</td>
+</tr>
+<tr>
+<td>负数</td>
+<td><code>maxSurge: -1</code></td>
+<td>must be positive</td>
+</tr>
+</tbody></table>
+<p><strong>计算规则</strong>：</p>
+<ul>
+<li>百分比值向上取整（ceil）。</li>
+<li>至少计算为 1 个 Pod。</li>
+<li>示例：3 副本，20.1% → ceil(0.603) &#x3D; 1。</li>
+</ul>
+<h3 id="5-生产环境推荐配置"><a href="#5-生产环境推荐配置" class="headerlink" title="5. 生产环境推荐配置"></a>5. 生产环境推荐配置</h3><p><strong>通用场景</strong>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">rollingUpdate:</span></span><br><span class="line">  <span class="attr">maxUnavailable:</span> <span class="number">25</span><span class="string">%</span></span><br><span class="line">  <span class="attr">maxSurge:</span> <span class="number">25</span><span class="string">%</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>关键业务</strong>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">rollingUpdate:</span></span><br><span class="line">  <span class="attr">maxUnavailable:</span> <span class="number">10</span><span class="string">%</span>  <span class="comment"># 保证 90% 可用性</span></span><br><span class="line">  <span class="attr">maxSurge:</span> <span class="number">20</span><span class="string">%</span>       <span class="comment"># 适度加快更新</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>开发环境</strong>：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">rollingUpdate:</span></span><br><span class="line">  <span class="attr">maxUnavailable:</span> <span class="number">50</span><span class="string">%</span></span><br><span class="line">  <span class="attr">maxSurge:</span> <span class="number">50</span><span class="string">%</span>        <span class="comment"># 快速更新</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>特殊场景</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>配置</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>数据库迁移</td>
+<td>maxUnavailable: 100%</td>
+<td>需停机更新</td>
+</tr>
+<tr>
+<td>资源充足</td>
+<td>maxSurge: 100%</td>
+<td>零停机</td>
+</tr>
+<tr>
+<td>资源紧张</td>
+<td>maxSurge: 0</td>
+<td>逐个替换</td>
+</tr>
+</tbody></table>
+<h3 id="6-常见问题解答"><a href="#6-常见问题解答" class="headerlink" title="6. 常见问题解答"></a>6. 常见问题解答</h3><ul>
+<li><strong>可以设置为小数吗？</strong> 百分比字符串允许小数（<code>&quot;20.5%&quot;</code>），数值形式必须为整数。</li>
+<li><strong>设置为 1000% 会怎样？</strong> 计算值会远大于实际副本数，实际效果等同于 100%。</li>
+<li><strong>为什么不能全为 0？</strong> 会导致更新无法进行——系统需要至少一个方向（删除或创建）的操作空间。</li>
+<li><strong>如何实现零停机更新？</strong> 设置 <code>maxUnavailable: 0</code> 与 <code>maxSurge: 100%</code>（或更大）。</li>
+</ul>
+<pre><code class="highlight mermaid">graph TB
+    Change[修改 Deployment 模板/镜像] --&gt; Type&#123;strategy.type&#125;
+    Type --&gt;|Recreate| Del[删除全部旧 Pod] --&gt; New[一次性创建新 Pod&lt;br/&gt;服务短暂中断]
+    Type --&gt;|RollingUpdate| Surge[按 maxSurge 创建新 Pod]
+    Surge --&gt; Ready&#123;新 Pod Ready?&#125;
+    Ready --&gt;|是| Kill[按 maxUnavailable 终止旧 Pod]
+    Ready --&gt;|否| Wait[等待/暂停更新]
+    Kill --&gt; Loop&#123;还有旧 Pod?&#125;
+    Loop --&gt;|是| Surge
+    Loop --&gt;|否| Done[更新完成]</code></pre>
+
+<h2 id="五、总结"><a href="#五、总结" class="headerlink" title="五、总结"></a>五、总结</h2><p>Deployment 的两种更新策略各有取舍：<code>Recreate</code> 简单但有停机，<code>RollingUpdate</code> 平滑但需要额外资源。滚动更新的核心是 <code>maxUnavailable</code> 和 <code>maxSurge</code> 这一对参数——前者守住可用性下限，后者控制资源峰值与更新速度。实际使用时还要留意它与资源配额、PDB、HPA、探针、亲和性、优雅退出、镜像拉取策略之间的相互影响，避免更新被阻塞或卡死。理解这些参数的边界行为和校验规则，才能在更新速度与系统稳定性之间找到适合业务的平衡点。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000212/">http://zmty365.github.io/posts/1000212/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5/">更新策略</a><a class="post-meta__tags" href="/tags/Deployment/">Deployment</a><a class="post-meta__tags" href="/tags/%E6%BB%9A%E5%8A%A8%E6%9B%B4%E6%96%B0/">滚动更新</a><a class="post-meta__tags" href="/tags/RollingUpdate/">RollingUpdate</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">高级运行时——以 Containerd 和 CRI - O 为例</div></div><div class="info-2"><div class="info-item-1">高级运行时——以 Containerd 和 CRI - O 为例 本文难度系数较大，以containerd为例介绍了高级运行时最重要的功能，高级运行时向下和OCI规范、低级运行时相关，向上和镜像拉取、镜像存储相关，建议结合相关知识点食用，多做实验加深理解。  一、高级运行时回顾：高级运行时 vs 低级运行时首先，回顾一下两个关键概念：  低级运行时 (Low-Level Runtime)： 职责：直接与操作系统内核交互，负责最底层的操作，即创建和运行容器进程。它接收一个包含了 rootfs 路径和配置的 JSON 文件（OCI runtime-spec），然后调用 clone、unshare 等系统调用去启动一个具有正确隔离（namespace、cgroups）的进程。 代表：runc（是 OCI 标准的参考实现）、runhcs（用于 Windows）、crun、kata-runtime。   高级运行时 (High-Level Runtime)： 职责：管理容器的整个生命周期。包括镜像的传输、管理、解压、文件系统快照的维护，以及最终调用低级运行时会执行容器。它解决了“如何从镜像...</div></div></div></a><a class="pagination-related" href="/posts/1000200/" title="Kubernetes 学习导航"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes 学习导航</div></div><div class="info-2"><div class="info-item-1">Kubernetes 学习导航本文是 Kubernetes 系列的学习主线，从「为什么需要编排」出发，循序覆盖架构、工作负载、调度、网络、存储、安全、扩展到批处理调度。  标注 [TODO] 的条目为待补充内容。  graph TD     A[0 入门与环境] --&gt; B[1 架构与核心机制]     B --&gt; C[2 API对象与Pod]     C --&gt; D[3 工作负载与控制器]     D --&gt; E[4 调度]     E --&gt; F[5 网络]     F --&gt; G[6 存储]     G --&gt; H[7 配置与安全]     H --&gt; I[8 运行时与接口]     I --&gt; J[9 可观测与运维]     J --&gt; K[10 扩展与Operator]     K --&gt; L[11 批处理调度 Kueue与Volcano]     L --&gt; M[12 生态插件]  0 入门与环境 在 Windows 系统中搭建单节点 k8s 集群：安装 minikube、k9s、helm Min...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a><a class="pagination-related" href="/posts/1000208/" title="Kubernetes StatefulSet 与 Headless Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes StatefulSet 与 Headless Service</div></div><div class="info-2"><div class="info-item-1">Kubernetes StatefulSet 与 Headless Service无状态应用可以随意扩缩、随意重建，谁顶上都一样；但数据库、消息队列这类有状态应用不行——每个实例都有自己的身份和数据，重建后必须”还是原来那个”。Kubernetes 用 StatefulSet + Headless Service 这对组合来解决这个问题。本文先讲清 Headless Service，再讲它如何与 StatefulSet 协同。 一、Headless Service 介绍Headless Service（无头服务）是 Kubernetes 中的一种特殊 Service 类型，它不会为 Service 分配集群 IP（ClusterIP），也不做负载均衡或请求代理。 主要特点 无集群 IP：与常规 Service 不同，Headless Service 没有 ClusterIP 地址。 直接 DNS 解析：DNS 查询会返回所有匹配 Pod 的 IP 地址列表，而不是单个 Service IP。 每个 Pod 有独立 DNS 记录：每个 Pod 会获得一个唯一的、可解析的 DNS 名...</div></div></div></a><a class="pagination-related" href="/posts/1000202/" title="Kubernetes Pod 基础"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Pod 基础</div></div><div class="info-2"><div class="info-item-1">Kubernetes Pod 基础一、Pod 是什么Pod 是 Kubernetes 中最小的可部署和可调度单元。一个 Pod 封装了一个或多个紧密关联的容器，这些容器共享同一份网络命名空间（Network Namespace）和存储卷（Volume），可以通过 localhost 相互通信。 之所以要有 Pod 这一层抽象，而不是直接调度容器，是因为现实中很多应用是”超亲密关系”的容器组合。例如一个主容器加一个负责收集日志的 Sidecar 容器，它们需要共享同一份文件和网络，必须被作为一个整体来调度、部署和扩缩容。 二、Pod 的生命周期与状态Pod 在其生命周期中会处于不同的阶段（Phase），这个状态记录在 status.phase 字段中。主要状态如下：    状态 含义    Pending Pod 已被 Kubernetes 接受，但还有容器未创建完成（如正在拉取镜像、等待调度）   Running Pod 已绑定到节点，所有容器都已创建，至少有一个容器仍在运行或正在启动&#x2F;重启   Succeeded Pod 中所有容器都已成功终止，且不会再重启   Fa...</div></div></div></a><a class="pagination-related" href="/posts/1000206/" title="Kubernetes 存储：Volume、持久卷与配置容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 存储：Volume、持久卷与配置容器</div></div><div class="info-2"><div class="info-item-1">Kubernetes 存储：Volume、持久卷与配置容器Kubernetes 支持很多类型的卷，一个 Pod 可以同时使用任意数目的卷。按生命周期可以分成两大类：  临时卷：生命周期与 Pod 相同。Pod 被删除时，卷也随之销毁。 持久卷：生命周期可以比 Pod 更长。Pod 不再存在时，Kubernetes 不会销毁持久卷。  需要注意的是：对于给定 Pod 中的任何类型的卷，在容器重启期间数据都不会丢失——因为卷的生命周期跟着 Pod 走，而不是跟着容器走。 graph TD     A[Volume 卷] --&gt; B[临时卷]     A --&gt; C[持久卷]     B --&gt; B1[emptyDir&lt;br/&gt;Pod 删除即清空]     C --&gt; C1[hostPath&lt;br/&gt;绑定宿主机目录]     C --&gt; C2[nfs&lt;br/&gt;网络文件系统]     C --&gt; C3[PV / PVC&lt;br/&gt;持久卷抽象]  一、VolumeemptyDir对于定义了 emptyDir ...</div></div></div></a><a class="pagination-related" href="/posts/1000211/" title="Kubernetes Endpoint 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Endpoint 详解</div></div><div class="info-2"><div class="info-item-1">一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint 的主要作用是将 Service 与后端 Pod 关联起来。当一个 Service 被创建时，Kubernetes 会自动创建对应的 Endpoint，将 Service 的流量分发到后端 Pod。它就像是一座桥梁，连接了抽象的服务访问入口（Service）和实际提供服务的工作负载（Pod），确保服务请求能够被正确地路由到可用的 Pod 实例上，实现了服务的高可用性和负载均衡。 二、Endpoint 的创建与管理（一）自动创建在 Kubernetes 中，Endpoint 通常是自动创建的。当创建一个 Service 时，Kubernetes 会根据 Service 的选择器（Select...</div></div></div></a><a class="pagination-related" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 之 Pod 资源调度</div></div><div class="info-2"><div class="info-item-1">Kubernetes 之 Pod 资源调度一、Pod 资源调度总览API Server 在接受客户端提交的 Pod 对象创建请求后，会通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 这一创建 Pod 对象的调度过程中有 3 个阶段：节点预选、节点优选、节点选定，从而筛选出最佳的节点。  节点预选：基于一系列的预选规则对每个节点进行检查，将那些不符合条件的节点过滤掉，从而完成节点的预选。 节点优选：对预选出的节点进行优先级排序，以便选出最合适运行 Pod 对象的节点。 节点选定：从优先级排序结果中挑选出优先级最高的节点运行 Pod，当这类节点多于 1 个时，则进行随机选择。  预选策略实际上就是节点过滤器，例如节点标签必须能够匹配到 Pod 资源的标签选择器（MatchNodeSelector 实现的规则），以及 Pod 容器的资源请求量不能大于节点上剩余的可分配资源（PodFitsResources 规则）等等。执行预选操作时，调度器会逐一根据规则进行筛选，如果预选没能选定一个合适的节点，此时 Pod 会一直处于 Pending 状...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81Deployment-%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E8%AF%A6%E8%A7%A3"><span class="toc-number">1.</span> <span class="toc-text">一、Deployment 更新策略详解</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E9%87%8D%E5%BB%BA%E6%9B%B4%E6%96%B0%EF%BC%88Recreate%EF%BC%89"><span class="toc-number">1.1.</span> <span class="toc-text">1. 重建更新（Recreate）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E6%BB%9A%E5%8A%A8%E6%9B%B4%E6%96%B0%EF%BC%88RollingUpdate%EF%BC%89"><span class="toc-number">1.2.</span> <span class="toc-text">2. 滚动更新（RollingUpdate）</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E6%BB%9A%E5%8A%A8%E6%9B%B4%E6%96%B0%E7%9A%84%E4%B8%A4%E4%B8%AA%E5%85%B3%E9%94%AE%E5%8F%82%E6%95%B0"><span class="toc-number">1.2.1.</span> <span class="toc-text">滚动更新的两个关键参数</span></a></li></ol></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81Deployment-%E9%85%8D%E7%BD%AE%E5%8F%98%E6%9B%B4%E4%B8%8E%E7%94%9F%E6%95%88%E6%9C%BA%E5%88%B6"><span class="toc-number">2.</span> <span class="toc-text">二、Deployment 配置变更与生效机制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%85%B3%E4%BA%8E%E6%9B%B4%E6%96%B0%E7%AD%96%E7%95%A5%E5%8F%98%E6%9B%B4"><span class="toc-number">2.1.</span> <span class="toc-text">关于更新策略变更</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%9C%80%E8%A6%81%E6%9B%BF%E6%8D%A2-Pod-%E6%89%8D%E8%83%BD%E7%94%9F%E6%95%88%E7%9A%84%E9%85%8D%E7%BD%AE"><span class="toc-number">2.2.</span> <span class="toc-text">需要替换 Pod 才能生效的配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%8D%E9%9C%80%E8%A6%81%E6%9B%BF%E6%8D%A2-Pod-%E7%9A%84%E9%85%8D%E7%BD%AE"><span class="toc-number">2.3.</span> <span class="toc-text">不需要替换 Pod 的配置</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E9%85%8D%E7%BD%AE%E6%9B%B4%E6%96%B0%E5%8F%AF%E8%83%BD%E7%9A%84%E5%86%B2%E7%AA%81"><span class="toc-number">3.</span> <span class="toc-text">三、配置更新可能的冲突</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E8%B5%84%E6%BA%90%E9%85%8D%E9%A2%9D%EF%BC%88Resource-Quotas%EF%BC%89"><span class="toc-number">3.1.</span> <span class="toc-text">1. 资源配额（Resource Quotas）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Pod-%E4%B8%AD%E6%96%AD%E9%A2%84%E7%AE%97%EF%BC%88PDB%EF%BC%8CPodDisruptionBudget%EF%BC%89"><span class="toc-number">3.2.</span> <span class="toc-text">2. Pod 中断预算（PDB，PodDisruptionBudget）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-HPA%EF%BC%88Horizontal-Pod-Autoscaler%EF%BC%89"><span class="toc-number">3.3.</span> <span class="toc-text">3. HPA（Horizontal Pod Autoscaler）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-Readiness-Probe-%E9%85%8D%E7%BD%AE"><span class="toc-number">3.4.</span> <span class="toc-text">4. Readiness Probe 配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-%E8%8A%82%E7%82%B9%E4%BA%B2%E5%92%8C%E6%80%A7-%E5%8F%8D%E4%BA%B2%E5%92%8C%E6%80%A7%EF%BC%88Affinity%EF%BC%89"><span class="toc-number">3.5.</span> <span class="toc-text">5. 节点亲和性 &#x2F; 反亲和性（Affinity）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-Termination-Grace-Period"><span class="toc-number">3.6.</span> <span class="toc-text">6. Termination Grace Period</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#7-%E9%95%9C%E5%83%8F%E6%8B%89%E5%8F%96%E7%AD%96%E7%95%A5%EF%BC%88Image-Pull-Policy%EF%BC%89"><span class="toc-number">3.7.</span> <span class="toc-text">7. 镜像拉取策略（Image Pull Policy）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%86%B2%E7%AA%81%E6%A3%80%E6%B5%8B%E4%B8%8E%E8%B0%83%E8%AF%95%E6%8A%80%E5%B7%A7"><span class="toc-number">3.8.</span> <span class="toc-text">冲突检测与调试技巧</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%85%8D%E7%BD%AE%E5%85%BC%E5%AE%B9%E6%80%A7%E6%A3%80%E6%9F%A5%E8%A1%A8"><span class="toc-number">3.9.</span> <span class="toc-text">配置兼容性检查表</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%BB%9A%E5%8A%A8%E6%9B%B4%E6%96%B0%E5%8F%82%E6%95%B0%EF%BC%88maxUnavailable-maxSurge%EF%BC%89%E6%B7%B1%E5%85%A5"><span class="toc-number">4.</span> <span class="toc-text">四、滚动更新参数（maxUnavailable &#x2F; maxSurge）深入</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%8F%82%E6%95%B0%E5%9F%BA%E7%A1%80%E5%AE%9A%E4%B9%89"><span class="toc-number">4.1.</span> <span class="toc-text">1. 参数基础定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E5%8F%96%E5%80%BC%E8%8C%83%E5%9B%B4%E4%B8%8E%E8%BE%B9%E7%95%8C%E6%83%85%E5%86%B5"><span class="toc-number">4.2.</span> <span class="toc-text">2. 取值范围与边界情况</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E7%89%B9%E6%AE%8A%E5%80%BC%E8%A1%8C%E4%B8%BA%E5%88%86%E6%9E%90"><span class="toc-number">4.3.</span> <span class="toc-text">3. 特殊值行为分析</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-%E6%A0%BC%E5%BC%8F%E8%A6%81%E6%B1%82%E4%B8%8E%E6%A0%A1%E9%AA%8C%E8%A7%84%E5%88%99"><span class="toc-number">4.4.</span> <span class="toc-text">4. 格式要求与校验规则</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-%E7%94%9F%E4%BA%A7%E7%8E%AF%E5%A2%83%E6%8E%A8%E8%8D%90%E9%85%8D%E7%BD%AE"><span class="toc-number">4.5.</span> <span class="toc-text">5. 生产环境推荐配置</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98%E8%A7%A3%E7%AD%94"><span class="toc-number">4.6.</span> <span class="toc-text">6. 常见问题解答</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">5.</span> <span class="toc-text">五、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress">Kubernetes 网络：Service、Pod 通讯与 Ingress</a><time datetime="2026-08-05T13:00:00.000Z" title="发表于 2026-08-05 21:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解">Kubernetes 中容器创建的全流程详解</a><time datetime="2026-08-05T12:45:00.000Z" title="发表于 2026-08-05 20:45:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度">Kubernetes 之 Pod 资源调度</a><time datetime="2026-08-05T12:30:00.000Z" title="发表于 2026-08-05 20:30:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000202/" title="Kubernetes Pod 基础">Kubernetes Pod 基础</a><time datetime="2026-08-05T12:00:00.000Z" title="发表于 2026-08-05 20:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000201/" title="Kubernetes 中的 API 对象">Kubernetes 中的 API 对象</a><time datetime="2026-08-05T11:35:28.000Z" title="发表于 2026-08-05 19:35:28">2026-08-05</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '9b476bac730a1beeafa2a8ef6f5d2e92'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

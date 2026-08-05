@@ -1,0 +1,809 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes Endpoint 详解 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes Endpoint 详解">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000211/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-05T02:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-05T13:23:10.135Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Endpoint">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Service">
+<meta property="article:tag" content="服务发现">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes Endpoint 详解",
+  "url": "http://zmty365.github.io/posts/1000211/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-05T02:00:00.000Z",
+  "dateModified": "2026-08-05T13:23:10.135Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000211/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes Endpoint 详解',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes Endpoint 详解</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes Endpoint 详解</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-05T02:00:00.000Z" title="发表于 2026-08-05 10:00:00">2026-08-05</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">1.8k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>6分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、Endpoint-的基本概念"><a href="#一、Endpoint-的基本概念" class="headerlink" title="一、Endpoint 的基本概念"></a>一、Endpoint 的基本概念</h2><h3 id="（一）Endpoint-的定义"><a href="#（一）Endpoint-的定义" class="headerlink" title="（一）Endpoint 的定义"></a>（一）Endpoint 的定义</h3><p>Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。</p>
+<h3 id="（二）Endpoint-的作用"><a href="#（二）Endpoint-的作用" class="headerlink" title="（二）Endpoint 的作用"></a>（二）Endpoint 的作用</h3><p>Endpoint 的主要作用是将 Service 与后端 Pod 关联起来。当一个 Service 被创建时，Kubernetes 会自动创建对应的 Endpoint，将 Service 的流量分发到后端 Pod。它就像是一座桥梁，连接了抽象的服务访问入口（Service）和实际提供服务的工作负载（Pod），确保服务请求能够被正确地路由到可用的 Pod 实例上，实现了服务的高可用性和负载均衡。</p>
+<h2 id="二、Endpoint-的创建与管理"><a href="#二、Endpoint-的创建与管理" class="headerlink" title="二、Endpoint 的创建与管理"></a>二、Endpoint 的创建与管理</h2><h3 id="（一）自动创建"><a href="#（一）自动创建" class="headerlink" title="（一）自动创建"></a>（一）自动创建</h3><p>在 Kubernetes 中，Endpoint 通常是自动创建的。当创建一个 Service 时，Kubernetes 会根据 Service 的选择器（Selector）自动发现匹配的 Pod，并创建相应的 Endpoint。这种自动化的创建机制大大简化了服务部署和管理的流程，管理员只需定义好 Service 及其选择器，系统就能自动完成 Endpoint 的配置，保证服务与后端 Pod 的正确关联。</p>
+<h3 id="（二）手动创建（可选）"><a href="#（二）手动创建（可选）" class="headerlink" title="（二）手动创建（可选）"></a>（二）手动创建（可选）</h3><p>虽然不常见，但 Endpoint 也可以手动创建。这通常用于特殊情况，比如需要显式指定 Endpoint 的 IP 地址和端口。例如，在与外部非 Kubernetes 管理的服务进行集成时，可能需要手动创建 Endpoint 来定义服务的访问信息，以便将其纳入 Kubernetes 的服务管理体系中。</p>
+<p>手动创建 Endpoint 时，需要保证它与目标 Service 同名、同命名空间，Service 本身不能带选择器（否则 Endpoint 会被控制器自动接管覆盖）：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Service</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">external-db</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">ports:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="attr">protocol:</span> <span class="string">TCP</span></span><br><span class="line">      <span class="attr">port:</span> <span class="number">3306</span></span><br><span class="line">      <span class="attr">targetPort:</span> <span class="number">3306</span></span><br><span class="line"><span class="meta">---</span></span><br><span class="line"><span class="attr">apiVersion:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Endpoints</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">external-db</span>   <span class="comment"># 必须与 Service 同名</span></span><br><span class="line"><span class="attr">subsets:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">addresses:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">ip:</span> <span class="number">192.168</span><span class="number">.100</span><span class="number">.10</span></span><br><span class="line">    <span class="attr">ports:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">port:</span> <span class="number">3306</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="（三）Endpoint-控制器"><a href="#（三）Endpoint-控制器" class="headerlink" title="（三）Endpoint 控制器"></a>（三）Endpoint 控制器</h3><p>Kubernetes 的 Endpoint 控制器（Endpoint Controller）负责监控 Service 和 Pod 的变化，并自动更新 Endpoint 的信息。例如，当一个新的 Pod 创建时，Endpoint 控制器会将该 Pod 的 IP 地址和端口添加到对应的 Endpoint 中。同样，当 Pod 被删除或发生故障时，Endpoint 控制器也会及时更新 Endpoint 信息，确保服务的流量始终能够分发到健康的 Pod 实例上，维护了服务的稳定性和可靠性。</p>
+<h2 id="三、Endpoint-的查看"><a href="#三、Endpoint-的查看" class="headerlink" title="三、Endpoint 的查看"></a>三、Endpoint 的查看</h2><p>查看默认命名空间的 Endpoint 可以使用以下命令：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get endpoints</span><br></pre></td></tr></table></figure>
+
+<p>执行该命令后，输出结果示例如下：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">NAME         ENDPOINTS                                            AGE</span><br><span class="line">kubernetes   10.170.0.2:6443                                      3d7h</span><br><span class="line">nginx        192.168.56.24:80,192.168.56.25:80,192.168.56.26:80   59m</span><br></pre></td></tr></table></figure>
+
+<p>其中 <code>nginx</code> 这一行的 Endpoint 中包含了多个 IP，对应了每一个后端 Pod 的 IP，其显示的端口正是我们需要暴露的端口。可以再用 <code>kubectl get pods -o wide</code> 对照，验证这些 IP 与实际 Pod 的对应关系：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get pods -o wide</span><br></pre></td></tr></table></figure>
+
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">NAME                     READY   STATUS    RESTARTS   AGE     IP</span><br><span class="line">nginx-55649fd747-67twm   1/1     Running   0          5d21h   192.168.56.24</span><br><span class="line">nginx-55649fd747-vntwb   1/1     Running   0          5d21h   192.168.56.25</span><br><span class="line">nginx-55649fd747-wmrlv   1/1     Running   0          5d21h   192.168.56.26</span><br></pre></td></tr></table></figure>
+
+<p>可以看到，Endpoint 记录的正是这一组 Pod 的 IP 地址。当使用 Service 为 Pod 暴露网络时，会从 Endpoint 中获得 Pod 的 IP 列表，以便能够将流量代理到合适的 Pod IP。通过查看 Endpoint，管理员可以直观了解服务后端的 Pod 部署情况，以及服务的实际访问路径。</p>
+<h2 id="四、Endpoint-与-Service-的关系"><a href="#四、Endpoint-与-Service-的关系" class="headerlink" title="四、Endpoint 与 Service 的关系"></a>四、Endpoint 与 Service 的关系</h2><h3 id="（一）Service-到-Endpoint-的映射"><a href="#（一）Service-到-Endpoint-的映射" class="headerlink" title="（一）Service 到 Endpoint 的映射"></a>（一）Service 到 Endpoint 的映射</h3><p>Service 是 Kubernetes 中用于定义一组 Pod 访问策略的抽象概念。它提供了一个固定的 IP 地址和 DNS 名称，作为服务的统一入口。而 Endpoint 则是 Service 的实际实现，包含了 Service 的流量分发目标。Service 通过与 Endpoint 的映射关系，将请求转发到具体的 Pod 实例�上，实现了服务的抽象化和负载均衡。</p>
+<h3 id="（二）服务发现"><a href="#（二）服务发现" class="headerlink" title="（二）服务发现"></a>（二）服务发现</h3><p>在 Kubernetes 集群中，Service 通过 Endpoint 实现服务发现。其他组件可以通过 Service 的 DNS 名称或 IP 地址访问 Endpoint，从而访问后端 Pod。例如，一个应用程序需要调用另一个服务时，只需通过 Service 的名称进行访问，Kubernetes 会自动根据 Endpoint 信息将请求路由到正确的 Pod，无需手动配置目标地址，大大提高了服务的可发现性和可访问性。</p>
+<p>下图展示了从请求发起到最终命中 Pod 的完整链路，以及 Endpoint 控制器在其中的角色：</p>
+<pre><code class="highlight mermaid">graph TB
+    Client[客户端请求] --&gt; SVC[Service 固定入口 ClusterIP/DNS]
+    SVC --&gt; EP[Endpoint 记录后端 Pod IP:Port 列表]
+    EP --&gt; P1[Pod 192.168.56.24:80]
+    EP --&gt; P2[Pod 192.168.56.25:80]
+    EP --&gt; P3[Pod 192.168.56.26:80]
+    Selector[Service Selector 匹配 Pod 标签] --&gt; EPC[Endpoint 控制器 监听 Pod 变化]
+    EPC --&gt; EP</code></pre>
+
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000211/00.png" class="">
+
+<h2 id="五、EndpointSlice"><a href="#五、EndpointSlice" class="headerlink" title="五、EndpointSlice"></a>五、EndpointSlice</h2><h3 id="（一）EndpointSlice-的概念"><a href="#（一）EndpointSlice-的概念" class="headerlink" title="（一）EndpointSlice 的概念"></a>（一）EndpointSlice 的概念</h3><p>为了提高 Endpoint 的管理效率，Kubernetes 1.21 引入了 EndpointSlice 资源并默认启用。EndpointSlice 将 Endpoint 分片管理，每个 EndpointSlice 默认最多包含 100 个 Endpoint，避免了单个 Endpoint 资源过大带来的性能问题。随着集群规模的扩大和服务数量的增加，传统的 Endpoint 管理方式可能会遇到性能瓶颈，EndpointSlice 通过分片的方式有效地解决了这个问题。传统的 Endpoints 对象仍然保留、可查看，但底层已由 EndpointSlice 驱动。</p>
+<h3 id="（二）EndpointSlice-的优势"><a href="#（二）EndpointSlice-的优势" class="headerlink" title="（二）EndpointSlice 的优势"></a>（二）EndpointSlice 的优势</h3><ul>
+<li><strong>提高性能</strong>：通过分片管理，减少单个资源的大小和复杂度。当某个后端 Pod 变化时，只需更新它所在的那一片 EndpointSlice，而不必重写整个大对象，降低了资源的加载、传输和处理开销。</li>
+<li><strong>增强扩展性</strong>：支持更大规模的集群和更多的 Endpoint。在大规模集群环境下，EndpointSlice 能够更好地适应不断增长的服务和 Pod 数量，保证服务发现和流量分发的高效运行。</li>
+</ul>
+<h3 id="（三）EndpointSlice-的使用"><a href="#（三）EndpointSlice-的使用" class="headerlink" title="（三）EndpointSlice 的使用"></a>（三）EndpointSlice 的使用</h3><p>EndpointSlice 由 Endpoint 控制器自动创建和管理，用户通常不需要直接操作。在日常的 Kubernetes 管理中，管理员只需关注 Service 和 Pod 的配置，EndpointSlice 会在后台自动完成创建、更新和管理工作，确保系统的高效运行。可以通过下面的命令查看：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get endpointslices</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、总结"><a href="#六、总结" class="headerlink" title="六、总结"></a>六、总结</h2><p>Endpoint 是连接 Service 与后端 Pod 的桥梁：Service 提供固定的访问入口，Endpoint 记录真实的 Pod IP 和端口列表，Endpoint 控制器则根据 Pod 的增删和健康状态实时维护这份列表，从而实现服务发现与负载均衡。在大规模集群中，EndpointSlice 通过分片进一步提升了这一机制的性能与扩展性。理解 Endpoint，是理解 Kubernetes 服务如何”把请求送到正确的 Pod”的关键一环。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000211/">http://zmty365.github.io/posts/1000211/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/Endpoint/">Endpoint</a><a class="post-meta__tags" href="/tags/Service/">Service</a><a class="post-meta__tags" href="/tags/%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0/">服务发现</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000200/" title="Kubernetes 学习导航"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes 学习导航</div></div><div class="info-2"><div class="info-item-1">Kubernetes 学习导航本文是 Kubernetes 系列的学习主线，从「为什么需要编排」出发，循序覆盖架构、工作负载、调度、网络、存储、安全、扩展到批处理调度。  标注 [TODO] 的条目为待补充内容。  graph TD     A[0 入门与环境] --&gt; B[1 架构与核心机制]     B --&gt; C[2 API对象与Pod]     C --&gt; D[3 工作负载与控制器]     D --&gt; E[4 调度]     E --&gt; F[5 网络]     F --&gt; G[6 存储]     G --&gt; H[7 配置与安全]     H --&gt; I[8 运行时与接口]     I --&gt; J[9 可观测与运维]     J --&gt; K[10 扩展与Operator]     K --&gt; L[11 批处理调度 Kueue与Volcano]     L --&gt; M[12 生态插件]  0 入门与环境 在 Windows 系统中搭建单节点 k8s 集群：安装 minikube、k9s、helm Min...</div></div></div></a><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 网络：Service、Pod 通讯与 Ingress</div></div><div class="info-2"><div class="info-item-1">Kubernetes 网络一、Kubernetes 的三种 IPKubernetes 中有三种不同层面的 IP，理解它们的区别是理解 K8s 网络的基础。  Node IP：Node 节点的 IP 地址 Node IP 是 Kubernetes 集群中节点的物理网卡 IP 地址，所有属于这个网络的服务器之间都能通过这个网络直接通信。  Pod IP：Pod 的 IP 地址 Pod IP 是每个 Pod 的 IP 地址，它由集群配置的 CNI 插件（如 Flannel、Calico 等）根据规划好的 Pod 网段分配，通常构成一个覆盖整个集群的虚拟网络。集群内的所有 Pod 都在同一个扁平的网络平面内，可以直接通过 Pod IP 互相通信。  Cluster IP：Service 的 IP 地址（Service Virtual IP，service vip） Cluster IP 是一个虚拟 IP，专门服务于 Kubernetes 的 Service 对象，由 Kubernetes 管理和分配。它有几个重要特点：  实际的消费者 Pod 通常并不直接调用 Service 的 Clu...</div></div></div></a><a class="pagination-related" href="/posts/1000208/" title="Kubernetes StatefulSet 与 Headless Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes StatefulSet 与 Headless Service</div></div><div class="info-2"><div class="info-item-1">Kubernetes StatefulSet 与 Headless Service无状态应用可以随意扩缩、随意重建，谁顶上都一样；但数据库、消息队列这类有状态应用不行——每个实例都有自己的身份和数据，重建后必须”还是原来那个”。Kubernetes 用 StatefulSet + Headless Service 这对组合来解决这个问题。本文先讲清 Headless Service，再讲它如何与 StatefulSet 协同。 一、Headless Service 介绍Headless Service（无头服务）是 Kubernetes 中的一种特殊 Service 类型，它不会为 Service 分配集群 IP（ClusterIP），也不做负载均衡或请求代理。 主要特点 无集群 IP：与常规 Service 不同，Headless Service 没有 ClusterIP 地址。 直接 DNS 解析：DNS 查询会返回所有匹配 Pod 的 IP 地址列表，而不是单个 Service IP。 每个 Pod 有独立 DNS 记录：每个 Pod 会获得一个唯一的、可解析的 DNS 名...</div></div></div></a><a class="pagination-related" href="/posts/1000200/" title="Kubernetes 学习导航"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 学习导航</div></div><div class="info-2"><div class="info-item-1">Kubernetes 学习导航本文是 Kubernetes 系列的学习主线，从「为什么需要编排」出发，循序覆盖架构、工作负载、调度、网络、存储、安全、扩展到批处理调度。  标注 [TODO] 的条目为待补充内容。  graph TD     A[0 入门与环境] --&gt; B[1 架构与核心机制]     B --&gt; C[2 API对象与Pod]     C --&gt; D[3 工作负载与控制器]     D --&gt; E[4 调度]     E --&gt; F[5 网络]     F --&gt; G[6 存储]     G --&gt; H[7 配置与安全]     H --&gt; I[8 运行时与接口]     I --&gt; J[9 可观测与运维]     J --&gt; K[10 扩展与Operator]     K --&gt; L[11 批处理调度 Kueue与Volcano]     L --&gt; M[12 生态插件]  0 入门与环境 在 Windows 系统中搭建单节点 k8s 集群：安装 minikube、k9s、helm Min...</div></div></div></a><a class="pagination-related" href="/posts/1000210/" title="Kubernetes 节点异常状态与污点"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 节点异常状态与污点</div></div><div class="info-2"><div class="info-item-1">Kubernetes 节点异常状态与污点当一个节点出问题时，kubectl get nodes 会看到它变成 NotReady 或 SchedulingDisabled。这些状态不是孤立的——Kubernetes 会根据节点状态自动给节点打上污点（Taint），从而控制 Pod 的调度与驱逐。本文先讲清两种异常状态的成因，再讲三种系统内置污点，最后把状态与污点的对应关系串起来。 一、NotReady：节点状态为 NotReady 的原因0. 常见原因：Kubelet 挂掉判断方法：  登录到节点：ssh root@11.127.211.13 检查 Kubelet 进程：ps -ef | grep &#39;kubelet&#39;  1. 网络问题网络连接中断：  节点与 API 服务器之间的网络连接不稳定或中断，会导致节点无法正常向 API 服务器汇报状态。 例如网络设备故障、网络配置错误等，使得 Kubelet 无法与 API 服务器进行通信。  网络插件故障：  Kubernetes 的网络插件（如 Calico、Flannel 等）出现问题，会影响节点之间的网络通信以及 ...</div></div></div></a><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a><a class="pagination-related" href="/posts/1000201/" title="Kubernetes 中的 API 对象"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中的 API 对象</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中的 API 对象一、API 对象API 对象是 Kubernetes 集群中的管理操作单元。Kubernetes 集群系统每支持一项新功能、引入一项新技术，一定会引入对应的 API 对象来支持对该功能的管理操作。 每个 API 对象都有三大类属性：元数据 metadata、规范 spec 和状态 status。  元数据（metadata）：用来标识 API 对象。每个对象都至少有 3 个元数据：namespace、name 和 uid；除此以外还有各种各样的标签 labels，用来标识和匹配不同的对象。例如用户可以用标签 env 来区分不同的服务部署环境，分别用 env=dev、env=testing、env=production 来标识开发、测试、生产环境。 规范（spec）：描述用户期望 Kubernetes 集群中的分布式系统达到的理想状态。例如用户可以通过 Replication Controller 设置期望的 Pod 副本数为 3。 状态（status）：描述系统实际当前达到的状态。例如系统当前实际的 Pod 副本数为 2，那么 Replic...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">22</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">31</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81Endpoint-%E7%9A%84%E5%9F%BA%E6%9C%AC%E6%A6%82%E5%BF%B5"><span class="toc-number">1.</span> <span class="toc-text">一、Endpoint 的基本概念</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89Endpoint-%E7%9A%84%E5%AE%9A%E4%B9%89"><span class="toc-number">1.1.</span> <span class="toc-text">（一）Endpoint 的定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89Endpoint-%E7%9A%84%E4%BD%9C%E7%94%A8"><span class="toc-number">1.2.</span> <span class="toc-text">（二）Endpoint 的作用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81Endpoint-%E7%9A%84%E5%88%9B%E5%BB%BA%E4%B8%8E%E7%AE%A1%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">二、Endpoint 的创建与管理</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89%E8%87%AA%E5%8A%A8%E5%88%9B%E5%BB%BA"><span class="toc-number">2.1.</span> <span class="toc-text">（一）自动创建</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89%E6%89%8B%E5%8A%A8%E5%88%9B%E5%BB%BA%EF%BC%88%E5%8F%AF%E9%80%89%EF%BC%89"><span class="toc-number">2.2.</span> <span class="toc-text">（二）手动创建（可选）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%89%EF%BC%89Endpoint-%E6%8E%A7%E5%88%B6%E5%99%A8"><span class="toc-number">2.3.</span> <span class="toc-text">（三）Endpoint 控制器</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81Endpoint-%E7%9A%84%E6%9F%A5%E7%9C%8B"><span class="toc-number">3.</span> <span class="toc-text">三、Endpoint 的查看</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81Endpoint-%E4%B8%8E-Service-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">4.</span> <span class="toc-text">四、Endpoint 与 Service 的关系</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89Service-%E5%88%B0-Endpoint-%E7%9A%84%E6%98%A0%E5%B0%84"><span class="toc-number">4.1.</span> <span class="toc-text">（一）Service 到 Endpoint 的映射</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89%E6%9C%8D%E5%8A%A1%E5%8F%91%E7%8E%B0"><span class="toc-number">4.2.</span> <span class="toc-text">（二）服务发现</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81EndpointSlice"><span class="toc-number">5.</span> <span class="toc-text">五、EndpointSlice</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89EndpointSlice-%E7%9A%84%E6%A6%82%E5%BF%B5"><span class="toc-number">5.1.</span> <span class="toc-text">（一）EndpointSlice 的概念</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89EndpointSlice-%E7%9A%84%E4%BC%98%E5%8A%BF"><span class="toc-number">5.2.</span> <span class="toc-text">（二）EndpointSlice 的优势</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%89%EF%BC%89EndpointSlice-%E7%9A%84%E4%BD%BF%E7%94%A8"><span class="toc-number">5.3.</span> <span class="toc-text">（三）EndpointSlice 的使用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E6%80%BB%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">六、总结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress">Kubernetes 网络：Service、Pod 通讯与 Ingress</a><time datetime="2026-08-05T13:00:00.000Z" title="发表于 2026-08-05 21:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解">Kubernetes 中容器创建的全流程详解</a><time datetime="2026-08-05T12:45:00.000Z" title="发表于 2026-08-05 20:45:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度">Kubernetes 之 Pod 资源调度</a><time datetime="2026-08-05T12:30:00.000Z" title="发表于 2026-08-05 20:30:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000202/" title="Kubernetes Pod 基础">Kubernetes Pod 基础</a><time datetime="2026-08-05T12:00:00.000Z" title="发表于 2026-08-05 20:00:00">2026-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000201/" title="Kubernetes 中的 API 对象">Kubernetes 中的 API 对象</a><time datetime="2026-08-05T11:35:28.000Z" title="发表于 2026-08-05 19:35:28">2026-08-05</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '2ec220c39ef7c2cc08d4eb4a4a58de47'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
