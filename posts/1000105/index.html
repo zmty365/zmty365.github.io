@@ -290,7 +290,7 @@
 <blockquote>
 <p>在下一节，我们将了解尝试用runc这一低级运行时对容器做生命管理。</p>
 </blockquote>
-</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000105/">http://zmty365.github.io/posts/1000105/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a><a class="post-meta__tags" href="/tags/Runtime/">Runtime</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-07</div><div class="info-item-2">高级运行时——以 Containerd 和 CRI - O 为例</div></div><div class="info-2"><div class="info-item-1">高级运行时——以 Containerd 和 CRI - O 为例 本文难度系数较大，以containerd为例介绍了高级运行时最重要的功能，高级运行时向下和OCI规范、低级运行时相关，向上和镜像拉取、镜像存储相关，建议结合相关知识点食用，多做实验加深理解。  一、高级运行时回顾：高级运行时 vs 低级运行时首先，回顾一下两个关键概念：  低级运行时 (Low-Level Runtime)： 职责：直接与操作系统内核交互，负责最底层的操作，即创建和运行容器进程。它接收一个包含了 rootfs 路径和配置的 JSON 文件（OCI runtime-spec），然后调用 clone、unshare 等系统调用去启动一个具有正确隔离（namespace、cgroups）的进程。 代表：runc（是 OCI 标准的参考实现）、runhcs（用于 Windows）、crun、kata-runtime。   高级运行时 (High-Level Runtime)： 职责：管理容器的整个生命周期。包括镜像的传输、管理、解压、文件系统快照的维护，以及最终调用低级运行时会执行容器。它解决了“如何从镜像...</div></div></div></a><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-02</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000102/" title="Namespace"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">Namespace</div></div><div class="info-2"><div class="info-item-1">Linux 命名空间 在本小节，我们将了解容器的底层原理之一——Namespace，通过动手实践逐步搭建一个隔离的环境。  命名空间概述命名空间是一项 Linux 内核功能，于 2002 年随 Linux 2.4.19 引入。命名空间背后的想法是将特定的全局系统资源包装在抽象层中。内核命名空间抽象，允许不同的进程组具有不同的系统视图。这使得命名空间内的进程看起来拥有自己的全局资源的隔离实例。 从 Linux 内核 5.6 开始，共有 8 种命名空间，每种负责隔离一种特定的系统资源。下表详细说明：    命名空间类型 对应的 clone() 标志 对应的 unshare 选项 作用（隔离的资源） 典型场景    PID（进程 ID） CLONE_NEWPID -p 或 --pid 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） CLONE_NEWNS -m 或 --mount 隔离文件...</div></div></div></a><a class="pagination-related" href="/posts/1000103/" title="Cgroups"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-24</div><div class="info-item-2">Cgroups</div></div><div class="info-2"><div class="info-item-1">Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。 cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是取消子系统拆分、采用统一目录结构，所有资源管控逻辑集中在 /sys/fs/cgroup 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。  cgroup简介什么是cgroupcgroup 是 “control group” 的缩写，并且首字母永远不大写。cgroup 是一种以 hierarchical (树形层级)方式组织进程...</div></div></div></a><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-27</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">容器运行时概述</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E6%A0%B8%E5%BF%83%E5%AE%9A%E4%B9%89"><span class="toc-number">1.1.</span> <span class="toc-text">一、容器运行时的核心定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E4%B8%89%E7%B1%BB%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E8%AF%A6%E7%BB%86%E8%A7%A3%E6%9E%90"><span class="toc-number">1.2.</span> <span class="toc-text">二、三类容器运行时的详细解析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E4%BD%8E%E7%BA%A7%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88Low-level-Runtime%EF%BC%89"><span class="toc-number">1.2.1.</span> <span class="toc-text">1. 低级运行时（Low-level Runtime）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E9%AB%98%E7%BA%A7%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88High-level-Runtime%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2. 高级运行时（High-level Runtime）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%B2%99%E7%9B%92-%E8%99%9A%E6%8B%9F%E5%8C%96%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88Sandboxed-Virtualized-Runtime%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">3. 沙盒&#x2F;虚拟化运行时（Sandboxed&#x2F;Virtualized Runtime）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%A0%B8%E5%BF%83%E5%8C%BA%E5%88%AB%E6%80%BB%E7%BB%93"><span class="toc-number">1.3.</span> <span class="toc-text">三、核心区别总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例">高级运行时——以 Containerd 和 CRI - O 为例</a><time datetime="2025-09-07T04:00:00.000Z" title="发表于 2025-09-07 12:00:00">2025-09-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000106/" title="低级运行时——以 runc 为例">低级运行时——以 runc 为例</a><time datetime="2025-09-02T04:00:00.000Z" title="发表于 2025-09-02 12:00:00">2025-09-02</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000105/" title="容器运行时概述">容器运行时概述</a><time datetime="2025-08-29T04:00:00.000Z" title="发表于 2025-08-29 12:00:00">2025-08-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000105/">http://zmty365.github.io/posts/1000105/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Container/">Container</a><a class="post-meta__tags" href="/tags/Runtime/">Runtime</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000104/" title="用c语言构建简易容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">用c语言构建简易容器</div></div><div class="info-2"><div class="info-item-1">构建简易容器 在本小节，我们将根据前两节所学的namespace和cgroup原理，逐步实现一个简易容器。  创建七种namespace123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354#define _GNU_SOURCE      // 启用GNU扩展功能（如clone函数的扩展参数）#include &lt;errno.h&gt;       // 用于错误码处理（errno）#include &lt;sched.h&gt;       // 用于clone系统调用#include &lt;stdio.h&gt;       // 用于输入输出（fprintf等）#include &lt;string.h&gt;      // 用于字符串操作（strerror等）#include &lt;sys/wait.h&gt;    // 用于等待子进程（waitpid、WEXITSTATUS）#include &lt;unistd.h...</div></div></div></a><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000106/" title="低级运行时——以 runc 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-02</div><div class="info-item-2">低级运行时——以 runc 为例</div></div><div class="info-2"><div class="info-item-1">低级运行时——以 runc 为例 本文以runc为例介绍了低级运行时。  OCI 运行时规范（OCI Runtime Specification） OCI（Open Container Initiative，开放容器倡议）运行时规范（Runtime Specification，简称 runtime-spec）是一套关于容器运行时行为的标准化规范，定义了容器的生命周期、运行环境、配置格式等核心要素，旨在确保不同容器运行时之间的兼容性。 runc 最初源自 Docker 的容器运行时代码，后来被捐赠给 OCI，成为了 OCI 规范的官方参考实现。目前主流的容器引擎（如 Docker、containerd、CRI-O 等）底层大多依赖 runc 来实际运行容器，因为它严格遵循 OCI 规范，确保了兼容性和稳定性。  准备工作：1234567891011121314151617# 更新软件包索引sudo apt update# 安装 runcsudo apt install runc# 安装 jqsudo apt  install jq# 安装 skopeo（Ubuntu 20.04+ ...</div></div></div></a><a class="pagination-related" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-09-07</div><div class="info-item-2">高级运行时——以 Containerd 和 CRI - O 为例</div></div><div class="info-2"><div class="info-item-1">高级运行时——以 Containerd 和 CRI - O 为例 本文难度系数较大，以containerd为例介绍了高级运行时最重要的功能，高级运行时向下和OCI规范、低级运行时相关，向上和镜像拉取、镜像存储相关，建议结合相关知识点食用，多做实验加深理解。  一、高级运行时回顾：高级运行时 vs 低级运行时首先，回顾一下两个关键概念：  低级运行时 (Low-Level Runtime)： 职责：直接与操作系统内核交互，负责最底层的操作，即创建和运行容器进程。它接收一个包含了 rootfs 路径和配置的 JSON 文件（OCI runtime-spec），然后调用 clone、unshare 等系统调用去启动一个具有正确隔离（namespace、cgroups）的进程。 代表：runc（是 OCI 标准的参考实现）、runhcs（用于 Windows）、crun、kata-runtime。   高级运行时 (High-Level Runtime)： 职责：管理容器的整个生命周期。包括镜像的传输、管理、解压、文件系统快照的维护，以及最终调用低级运行时会执行容器。它解决了“如何从镜像...</div></div></div></a><a class="pagination-related" href="/posts/1000102/" title="Namespace"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">Namespace</div></div><div class="info-2"><div class="info-item-1">Linux 命名空间 在本小节，我们将了解容器的底层原理之一——Namespace，通过动手实践逐步搭建一个隔离的环境。  命名空间概述命名空间是一项 Linux 内核功能，于 2002 年随 Linux 2.4.19 引入。命名空间背后的想法是将特定的全局系统资源包装在抽象层中。内核命名空间抽象，允许不同的进程组具有不同的系统视图。这使得命名空间内的进程看起来拥有自己的全局资源的隔离实例。 从 Linux 内核 5.6 开始，共有 8 种命名空间，每种负责隔离一种特定的系统资源。下表详细说明：    命名空间类型 对应的 clone() 标志 对应的 unshare 选项 作用（隔离的资源） 典型场景    PID（进程 ID） CLONE_NEWPID -p 或 --pid 隔离进程 ID 编号空间。每个命名空间内的进程有独立的 PID 序列（如各自的 PID&#x3D;1），且看不到其他命名空间的进程。 容器内的进程 PID 与主机隔离（如容器内的 init 进程为 PID&#x3D;1）。   Mount（挂载） CLONE_NEWNS -m 或 --mount 隔离文件...</div></div></div></a><a class="pagination-related" href="/posts/1000103/" title="Cgroups"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-24</div><div class="info-item-2">Cgroups</div></div><div class="info-2"><div class="info-item-1">Linux 控制组（Cgroups） 在本小节，我们将了解容器的底层原理之一——Cgroup，通过动手实践了解它的作用。  背景 cgroup和namespace类似，也是将进程进行分组，但它的目的和namespace不一样，namespace是为了隔离进程组之间的资源，而cgroup是为了对一组进程进行统一的资源监控和限制。 cgroup分v1和v2两个版本，v1实现较早，功能比较多，但是由于它里面的功能都是零零散散的实现的，所以规划的不是很好，导致了一些使用和维护上的不便，v2的出现就是为了解决v1中这方面的问题。 cgroup v2 是 Linux 内核对 cgroup v1 的重构版本，核心改进是取消子系统拆分、采用统一目录结构，所有资源管控逻辑集中在 /sys/fs/cgroup 根目录下，配置更简洁、避免资源冲突，同时支持更精细的资源控制（如内存压力反馈、CPU 权重动态调整）。  cgroup简介什么是cgroupcgroup 是 “control group” 的缩写，并且首字母永远不大写。cgroup 是一种以 hierarchical (树形层级)方式组织进程...</div></div></div></a><a class="pagination-related" href="/posts/1000101/" title="容器相关命令"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-22</div><div class="info-item-2">容器相关命令</div></div><div class="info-2"><div class="info-item-1">Linux 容器核心命令 本节我们将了解一部分和容器比较相关的命令，并对每个命令进行讲解和实战。  准备工作安装Docker 推荐使用虚拟机或者原生Linux，WSL无法完成部分实验  使用wsl 安装 Docker Desktop  从 Docker 官方网站 下载并安装 Docker Desktop。 在安装过程中，确保勾选 “Enable the WSL 2 based engine”。 启动 Docker Desktop，进入 Settings &gt; General，确认已启用 WSL 2 引擎。   将 WSL 与 Docker 关联  在 Docker Desktop 的设置中，进入 Settings &gt; Resources &gt; WSL Integration。 勾选你的 Linux 发行版（例如 Ubuntu 22.04），启用与 Docker 的集成。    使用虚拟机或者Linux 推荐 待补充  第一部分：容器文件系统管理1. mount &#x2F; umount：容器存储什么是容器挂载？ Linux 中“挂载”的本质：将存储设备（或目录） ...</div></div></div></a><a class="pagination-related" href="/posts/1000100/" title="Container"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2025-08-21</div><div class="info-item-2">Container</div></div><div class="info-2"><div class="info-item-1">容器概述容器是什么 容器是一种受隔离（namespace）且受约束（cgroups）的进程组，也是隔离且受约束的环境，可在其中运行一个或多个进程。  Docker 的实现原理Namespace、Cgroup 和 UnionFS 三大技术支撑了目前 Docker 的实现，也是 Docker 能够出现的最重要原因。  注：AUFS 只是 UnionFS（联合文件系统）的一种早期实现，早期 Docker 常以 AUFS 为例讲解，但如今默认已改用 OverlayFS，因此严格来说三大支柱应表述为 UnionFS，而非特指 AUFS。   Namespace：用于实现资源的隔离，使每个容器拥有独立的进程、网络、文件系统等视图，从而在操作系统层面实现容器之间的隔离。 Cgroup：用于限制和分配容器的资源（如 CPU、内存、磁盘 I&#x2F;O 等），确保容器不会过度占用主机资源。 UnionFS：一种联合文件系统，用于实现容器的分层镜像和写时复制（Copy-on-Write）机制，使容器可以高效地共享基础镜像并独立修改文件。  NamespaceDocker 所实现的隔离性主要来自 k...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">8</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">5</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">容器运行时概述</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E6%A0%B8%E5%BF%83%E5%AE%9A%E4%B9%89"><span class="toc-number">1.1.</span> <span class="toc-text">一、容器运行时的核心定义</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E4%B8%89%E7%B1%BB%E5%AE%B9%E5%99%A8%E8%BF%90%E8%A1%8C%E6%97%B6%E7%9A%84%E8%AF%A6%E7%BB%86%E8%A7%A3%E6%9E%90"><span class="toc-number">1.2.</span> <span class="toc-text">二、三类容器运行时的详细解析</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-%E4%BD%8E%E7%BA%A7%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88Low-level-Runtime%EF%BC%89"><span class="toc-number">1.2.1.</span> <span class="toc-text">1. 低级运行时（Low-level Runtime）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-%E9%AB%98%E7%BA%A7%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88High-level-Runtime%EF%BC%89"><span class="toc-number">1.2.2.</span> <span class="toc-text">2. 高级运行时（High-level Runtime）</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#3-%E6%B2%99%E7%9B%92-%E8%99%9A%E6%8B%9F%E5%8C%96%E8%BF%90%E8%A1%8C%E6%97%B6%EF%BC%88Sandboxed-Virtualized-Runtime%EF%BC%89"><span class="toc-number">1.2.3.</span> <span class="toc-text">3. 沙盒&#x2F;虚拟化运行时（Sandboxed&#x2F;Virtualized Runtime）</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%A0%B8%E5%BF%83%E5%8C%BA%E5%88%AB%E6%80%BB%E7%BB%93"><span class="toc-number">1.3.</span> <span class="toc-text">三、核心区别总结</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000107/" title="高级运行时——以 Containerd 和 CRI - O 为例">高级运行时——以 Containerd 和 CRI - O 为例</a><time datetime="2025-09-07T04:00:00.000Z" title="发表于 2025-09-07 12:00:00">2025-09-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000106/" title="低级运行时——以 runc 为例">低级运行时——以 runc 为例</a><time datetime="2025-09-02T04:00:00.000Z" title="发表于 2025-09-02 12:00:00">2025-09-02</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000105/" title="容器运行时概述">容器运行时概述</a><time datetime="2025-08-29T04:00:00.000Z" title="发表于 2025-08-29 12:00:00">2025-08-29</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000104/" title="用c语言构建简易容器">用c语言构建简易容器</a><time datetime="2025-08-27T04:00:00.000Z" title="发表于 2025-08-27 12:00:00">2025-08-27</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000103/" title="Cgroups">Cgroups</a><time datetime="2025-08-24T04:00:00.000Z" title="发表于 2025-08-24 12:00:00">2025-08-24</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
   .footer {
     text-align: center;
     position: relative;
@@ -397,6 +397,368 @@
   });
 </script>
 </div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
   const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
   const option = null
 
