@@ -1,0 +1,869 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes CNI 详解：网络模型、工作原理与主流插件 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="一、CNI 概述Container Network Interface（CNI） 是由 CNCF（Cloud Native Computing Foundation）维护的开源项目，旨在为容器提供一致的网络配置接口。CNI 定义了一组规范和插件，使容器运行时（如 containerd、CRI-O 等）能够与第三方网络插件（CNI 插件）通信，从而实现容器网络的配置和管理。 Kubernetes 集">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes CNI 详解：网络模型、工作原理与主流插件">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000219/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="一、CNI 概述Container Network Interface（CNI） 是由 CNCF（Cloud Native Computing Foundation）维护的开源项目，旨在为容器提供一致的网络配置接口。CNI 定义了一组规范和插件，使容器运行时（如 containerd、CRI-O 等）能够与第三方网络插件（CNI 插件）通信，从而实现容器网络的配置和管理。 Kubernetes 集">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-06T09:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-06T10:27:31.706Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="CNI">
+<meta property="article:tag" content="Calico">
+<meta property="article:tag" content="Flannel">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="网络">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes CNI 详解：网络模型、工作原理与主流插件",
+  "url": "http://zmty365.github.io/posts/1000219/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-06T09:30:00.000Z",
+  "dateModified": "2026-08-06T10:27:31.706Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000219/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes CNI 详解：网络模型、工作原理与主流插件',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">58</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes CNI 详解：网络模型、工作原理与主流插件</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes CNI 详解：网络模型、工作原理与主流插件</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-06T09:30:00.000Z" title="发表于 2026-08-06 17:30:00">2026-08-06</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">1.7k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>5分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、CNI-概述"><a href="#一、CNI-概述" class="headerlink" title="一、CNI 概述"></a>一、CNI 概述</h2><p><strong>Container Network Interface（CNI）</strong> 是由 CNCF（Cloud Native Computing Foundation）维护的开源项目，旨在为容器提供一致的网络配置接口。CNI 定义了一组规范和插件，使容器运行时（如 containerd、CRI-O 等）能够与第三方网络插件（CNI 插件）通信，从而实现容器网络的配置和管理。</p>
+<p>Kubernetes 集群内的网络模型定义了以下几点：</p>
+<ul>
+<li><strong>每个 Pod 都有独立的 IP 地址</strong>：Pod 内所有容器共享同一个网络命名空间，因此共享同一个 IP 和网络配置。</li>
+<li><strong>集群内 Pod 处于扁平网络</strong>：所有 Pod 可直接互相通信，无需经过 NAT。</li>
+<li><strong>Service 与 Cluster IP</strong>：Kubernetes 提供 Service 和 Cluster IP，使服务能在集群内被发现和访问。</li>
+<li><strong>外部访问</strong>：外部请求可通过 NodePort、LoadBalancer 或 Ingress 等方式访问集群内服务。</li>
+</ul>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000219/00.png" class="">
+
+<h2 id="二、CNI-的工作原理"><a href="#二、CNI-的工作原理" class="headerlink" title="二、CNI 的工作原理"></a>二、CNI 的工作原理</h2><p>CNI 的核心思想是把容器的网络配置与容器运行时<strong>解耦</strong>，通过插件机制实现网络配置的灵活性。工作流程大致分为以下几步：</p>
+<ol>
+<li><strong>容器运行时创建网络命名空间</strong>：当 Kubernetes 把一个 Pod 调度到某节点时，容器运行时会为该 Pod 创建一个新的网络命名空间。</li>
+<li><strong>CNI 插件进行网络配置</strong>：容器运行时调用 CNI 插件执行网络配置，插件负责：<ul>
+<li>为容器分配 IP 地址；</li>
+<li>设置网络接口（如虚拟网卡）；</li>
+<li>配置路由表和网络策略。</li>
+</ul>
+</li>
+<li><strong>IPAM 插件分配 IP</strong>：CNI 插件通常使用 IPAM（IP Address Management）插件为容器分配 IP。IPAM 负责管理 IP 地址池，为每个容器分配唯一 IP。</li>
+<li><strong>启动容器</strong>：网络配置完成后，容器运行时启动容器，并将其加入已配置的网络命名空间。</li>
+</ol>
+<h2 id="三、CNI-插件的分类"><a href="#三、CNI-插件的分类" class="headerlink" title="三、CNI 插件的分类"></a>三、CNI 插件的分类</h2><p>按网络实现方式，CNI 插件大致可分为四类。</p>
+<p><strong>（1）二层互联</strong>：基于 VLAN 或 MAC 地址的二层网络技术。</p>
+<ul>
+<li>优点：网络延迟低，适合小规模集群。</li>
+<li>缺点：需在物理网络配置 VLAN，管理复杂，不适合跨机房或大规模集群。</li>
+<li>适用场景：小型集群或对网络性能要求较高的场景。</li>
+</ul>
+<p><strong>（2）三层路由</strong>：基于 BGP 等三层路由协议，通过路由表实现容器间通信。</p>
+<ul>
+<li>优点：传输效率高，无需封装 &#x2F; 解封装。</li>
+<li>缺点：路由配置复杂，可能需要额外硬件支持。</li>
+<li>适用场景：大规模集群，尤其需要高性能网络的场景。</li>
+</ul>
+<p><strong>（3）Overlay 方案</strong>：通过 VXLAN、IPIP 等协议把容器网络封装在现有物理网络之上。</p>
+<ul>
+<li>优点：支持跨数据中心互联，配置相对简单。</li>
+<li>缺点：封装 &#x2F; 解封装会增加一定计算和网络延迟。</li>
+<li>适用场景：跨数据中心或混合云环境。</li>
+</ul>
+<p><strong>（4）SDN 方案</strong>：基于软件定义网络，使用 SDN 控制器和虚拟交换机（如 OVS）实现灵活配置。</p>
+<ul>
+<li>优点：高度可定制，支持复杂网络策略。</li>
+<li>缺点：架构复杂，部署和维护成本较高。</li>
+<li>适用场景：对网络策略和定制化需求较高的企业级应用。</li>
+</ul>
+<h2 id="四、常见的-CNI-插件"><a href="#四、常见的-CNI-插件" class="headerlink" title="四、常见的 CNI 插件"></a>四、常见的 CNI 插件</h2><blockquote>
+<p><strong>提示</strong>：下文安装命令中的 URL 为素材原文所附，随着项目仓库迁移或版本更新，这些链接<strong>可能已失效</strong>。实际安装请以各插件官方文档的最新地址与版本为准。</p>
+</blockquote>
+<h3 id="1-Calico"><a href="#1-Calico" class="headerlink" title="1. Calico"></a>1. Calico</h3><p>特点：</p>
+<ul>
+<li><strong>基于 BGP 的网络方案</strong>：使用 BGP 协议实现容器间路由，支持大规模集群。</li>
+<li><strong>强大的网络策略</strong>：支持基于 IP、端口、协议的细粒度策略，安全功能丰富。</li>
+<li><strong>高性能与扩展性</strong>：适用于大规模集群。</li>
+<li><strong>多种网络模式</strong>：支持 Overlay 和 Underlay，适应不同网络环境。</li>
+</ul>
+<p>应用场景：适用于金融、电信等对网络安全和策略管理要求较高的行业，以及大规模集群和混合云环境。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装 Calico</span></span><br><span class="line">kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.0/manifests/tigera-operator.yaml</span><br><span class="line">kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.0/manifests/custom-resources.yaml</span><br></pre></td></tr></table></figure>
+
+<h3 id="2-Flannel"><a href="#2-Flannel" class="headerlink" title="2. Flannel"></a>2. Flannel</h3><p>特点：</p>
+<ul>
+<li><strong>简单易用</strong>：最早被广泛使用的 CNI 插件之一，配置简单，适合快速部署。</li>
+<li><strong>多种后端驱动</strong>：支持 VXLAN、host-gw 等多种后端，适应不同网络环境。</li>
+<li><strong>低资源消耗</strong>：资源占用较低，适合轻量级生产环境。</li>
+</ul>
+<p>应用场景：适用于初学者和测试环境，以及对网络功能要求较低的生产环境。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装 Flannel</span></span><br><span class="line">kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-Canal"><a href="#3-Canal" class="headerlink" title="3. Canal"></a>3. Canal</h3><p>特点：</p>
+<ul>
+<li><strong>结合 Calico 和 Flannel 的优势</strong>：兼具 Calico 的网络策略与 Flannel 的简单易用。</li>
+<li><strong>强大的网络隔离</strong>：支持细粒度网络策略，同时保持较低的配置复杂度。</li>
+<li><strong>适合混合环境</strong>：适用于既需要高性能又希望配置简单的场景。</li>
+</ul>
+<p>应用场景：适用于既需要强大网络安全策略、又希望配置简单的场景，常见于混合云和企业内部云原生平台。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 安装 Canal</span></span><br><span class="line">kubectl apply -f https://raw.githubusercontent.com/ggiammi/canal/master/deploy/canal.yaml</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、CNI-插件的配置与使用"><a href="#五、CNI-插件的配置与使用" class="headerlink" title="五、CNI 插件的配置与使用"></a>五、CNI 插件的配置与使用</h2><p><strong>1. 安装 CNI 插件</strong>：每个插件都有对应的安装步骤和配置文件。例如安装 Flannel：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml</span><br></pre></td></tr></table></figure>
+
+<p><strong>2. 配置 CNI 插件</strong>：在 Kubernetes 中，CNI 插件的配置文件通常位于 <code>/etc/cni/net.d/</code> 目录下。以 Flannel 的配置为例：</p>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="punctuation">&#123;</span></span><br><span class="line">    <span class="attr">&quot;name&quot;</span><span class="punctuation">:</span> <span class="string">&quot;flannel&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;type&quot;</span><span class="punctuation">:</span> <span class="string">&quot;flannel&quot;</span><span class="punctuation">,</span></span><br><span class="line">    <span class="attr">&quot;delegate&quot;</span><span class="punctuation">:</span> <span class="punctuation">&#123;</span></span><br><span class="line">        <span class="attr">&quot;hairpinMode&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span><span class="punctuation">,</span></span><br><span class="line">        <span class="attr">&quot;isDefaultGateway&quot;</span><span class="punctuation">:</span> <span class="literal"><span class="keyword">true</span></span></span><br><span class="line">    <span class="punctuation">&#125;</span></span><br><span class="line"><span class="punctuation">&#125;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong>3. 验证 CNI 插件</strong>：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查 Pod 的网络配置（查看是否分配到 IP）</span></span><br><span class="line">kubectl get pods -o wide</span><br><span class="line"></span><br><span class="line"><span class="comment"># 检查网络插件的运行状态</span></span><br><span class="line">kubectl get pods -n kube-system</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、CNI-的高级主题"><a href="#六、CNI-的高级主题" class="headerlink" title="六、CNI 的高级主题"></a>六、CNI 的高级主题</h2><ul>
+<li><strong>多租户网络</strong>：CNI 插件支持多租户网络，通过网络策略和隔离机制实现不同租户之间的网络隔离。</li>
+<li><strong>网络策略</strong>：Kubernetes 提供 <code>NetworkPolicy</code> 资源，结合 CNI 插件的网络策略功能，可实现细粒度的网络访问控制。</li>
+<li><strong>性能优化</strong>：<ul>
+<li>根据集群规模和网络需求，选择合适的 CNI 插件与网络方案。</li>
+<li>配置合适的网络参数（如 MTU、路由表等）以优化网络性能。</li>
+</ul>
+</li>
+</ul>
+<h2 id="七、小结"><a href="#七、小结" class="headerlink" title="七、小结"></a>七、小结</h2><ul>
+<li><strong>CNI</strong> 是 Kubernetes 网络模型的核心组件，通过插件机制把容器网络配置与运行时解耦，实现灵活的网络配置与管理。</li>
+<li>按实现方式可分为<strong>二层互联、三层路由、Overlay、SDN</strong> 四类，各有适用规模与场景。</li>
+<li>主流插件中：<strong>Calico</strong>（BGP，强策略，大规模）、<strong>Flannel</strong>（简单轻量）、<strong>Canal</strong>（Calico + Flannel 组合）各有侧重。</li>
+<li>选型时应结合集群规模、性能要求与网络策略需求综合权衡，安装请以官方最新文档为准。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000219/">http://zmty365.github.io/posts/1000219/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/CNI/">CNI</a><a class="post-meta__tags" href="/tags/%E7%BD%91%E7%BB%9C/">网络</a><a class="post-meta__tags" href="/tags/Calico/">Calico</a><a class="post-meta__tags" href="/tags/Flannel/">Flannel</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000218/" title="Kubernetes 容器运行时详解：从原理、CRI 到运行时选型"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes 容器运行时详解：从原理、CRI 到运行时选型</div></div><div class="info-2"><div class="info-item-1">一、什么是容器运行时容器运行时（Container Runtime）提供容器的运行环境，是负责运行容器的软件。通俗地讲，它管理容器从拉取镜像、创建、启动、运行、销毁的完整生命周期。 以 Docker 为例，作为一个整体的容器运行时实现，主要提供：  制定容器镜像格式 构建容器镜像 运行容器  二、容器运行时的分类1. 高层运行时与低层运行时目前较流行的说法按功能实现把容器运行时分为两类：  低层运行时（low-level）：通常只关注 Namespace、Cgroups、镜像拆包等基础的容器运行实现（如 runc）。 高层运行时（high-level）：支持更多高级功能（如镜像管理、CRI 实现）的运行时（如 containerd、CRI-O）。  2. 按隔离技术分类（1）基于 hypervisor 的运行时  代表技术：KVM、Kata Containers 等。 原理：利用 hypervisor 在物理主机上创建多个虚拟机，每个虚拟机有独立的操作系统和资源隔离环境，容器运行在虚拟机内部，实现更强隔离。 优点：硬件级强隔离，安全性高，一个容器的故障或攻击很难影响其他容器或主机...</div></div></div></a><a class="pagination-related" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes CSI 详解：架构、组件与工作原理</div></div><div class="info-2"><div class="info-item-1">一、CSI 概述Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。 在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如 NFS、AWS EFS、Ceph、GlusterFS 等）对接，实现存储卷的创建、挂载、卸载等操作。CSI 的引入取代了旧的 FlexVolume 插件机制，提供了更灵活、更强大的存储管理能力。 二、CSI 系统架构  CSI 在 Kubernetes 中分为控制端和节点端两部分： Controller Server（控制服务器）  功能：负责存储卷的生命周期管理，包括卷的创建、删除、挂载、卸载等操作。 部署方式：通常以 StatefulSet 或 Deployment 的形式运行，确保高可用性和唯一性。 组件： CSI 驱动容器：由第三方存储供应商提供，实现 CSI 接口的 Iden...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 网络：Service、Pod 通讯与 Ingress</div></div><div class="info-2"><div class="info-item-1">Kubernetes 网络一、Kubernetes 的三种 IPKubernetes 中有三种不同层面的 IP，理解它们的区别是理解 K8s 网络的基础。  Node IP：Node 节点的 IP 地址 Node IP 是 Kubernetes 集群中节点的物理网卡 IP 地址，所有属于这个网络的服务器之间都能通过这个网络直接通信。  Pod IP：Pod 的 IP 地址 Pod IP 是每个 Pod 的 IP 地址，它由集群配置的 CNI 插件（如 Flannel、Calico 等）根据规划好的 Pod 网段分配，通常构成一个覆盖整个集群的虚拟网络。集群内的所有 Pod 都在同一个扁平的网络平面内，可以直接通过 Pod IP 互相通信。  Cluster IP：Service 的 IP 地址（Service Virtual IP，service vip） Cluster IP 是一个虚拟 IP，专门服务于 Kubernetes 的 Service 对象，由 Kubernetes 管理和分配。它有几个重要特点：  实际的消费者 Pod 通常并不直接调用 Service 的 Clu...</div></div></div></a><a class="pagination-related" href="/posts/1000208/" title="Kubernetes StatefulSet 与 Headless Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes StatefulSet 与 Headless Service</div></div><div class="info-2"><div class="info-item-1">Kubernetes StatefulSet 与 Headless Service无状态应用可以随意扩缩、随意重建，谁顶上都一样；但数据库、消息队列这类有状态应用不行——每个实例都有自己的身份和数据，重建后必须”还是原来那个”。Kubernetes 用 StatefulSet + Headless Service 这对组合来解决这个问题。本文先讲清 Headless Service，再讲它如何与 StatefulSet 协同。 一、Headless Service 介绍Headless Service（无头服务）是 Kubernetes 中的一种特殊 Service 类型，它不会为 Service 分配集群 IP（ClusterIP），也不做负载均衡或请求代理。 主要特点 无集群 IP：与常规 Service 不同，Headless Service 没有 ClusterIP 地址。 直接 DNS 解析：DNS 查询会返回所有匹配 Pod 的 IP 地址列表，而不是单个 Service IP。 每个 Pod 有独立 DNS 记录：每个 Pod 会获得一个唯一的、可解析的 DNS 名...</div></div></div></a><a class="pagination-related" href="/posts/1000210/" title="Kubernetes 节点异常状态与污点"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 节点异常状态与污点</div></div><div class="info-2"><div class="info-item-1">Kubernetes 节点异常状态与污点当一个节点出问题时，kubectl get nodes 会看到它变成 NotReady 或 SchedulingDisabled。这些状态不是孤立的——Kubernetes 会根据节点状态自动给节点打上污点（Taint），从而控制 Pod 的调度与驱逐。本文先讲清两种异常状态的成因，再讲三种系统内置污点，最后把状态与污点的对应关系串起来。 一、NotReady：节点状态为 NotReady 的原因0. 常见原因：Kubelet 挂掉判断方法：  登录到节点：ssh root@11.127.211.13 检查 Kubelet 进程：ps -ef | grep &#39;kubelet&#39;  1. 网络问题网络连接中断：  节点与 API 服务器之间的网络连接不稳定或中断，会导致节点无法正常向 API 服务器汇报状态。 例如网络设备故障、网络配置错误等，使得 Kubelet 无法与 API 服务器进行通信。  网络插件故障：  Kubernetes 的网络插件（如 Calico、Flannel 等）出现问题，会影响节点之间的网络通信以及 ...</div></div></div></a><a class="pagination-related" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中容器创建的全流程详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中容器创建的全流程详解从 kubectl 提交请求到容器真正跑起来，Kubernetes 内部经历了调度、运行时、存储、网络等多个组件的协同。下面按 10 个阶段拆解整个流程。 graph TD     A[1 调度器选择节点] --&gt; B[2 Kubelet 接收请求]     B --&gt; C[3 CRI 请求处理]     C --&gt; D[4 CSI 插件介入 存储卷]     D --&gt; E[5 Pod Sandbox 创建 + 网络命名空间]     E --&gt; F[6 CNI 插件配置网络]     F --&gt; G[7 Container Runtime 管理]     G --&gt; H[8 启动 Pod 内业务容器]     H --&gt; I[9 结果反馈与状态更新]     I --&gt; J[10 故障恢复与自愈]  1. 调度器选择节点 资源评估：Kubernetes 调度器评估所有候选节点的资源状态，包括 CPU、内存、存储空间等，确保节点有足够的资源支持 Pod 的运行。 调度策略：根据预设...</div></div></div></a><a class="pagination-related" href="/posts/1000215/" title="Kubernetes ServiceAccount 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes ServiceAccount 详解</div></div><div class="info-2"><div class="info-item-1"> ServiceAccount 是 RBAC 授权链里的「主体」，它和 RoleBinding 详解 密切相关：ServiceAccount 回答「谁」，RoleBinding 负责把 Role 的权限「授予谁」。建议两篇对照阅读。  一、ServiceAccount 基本概念ServiceAccount（服务账户）是 Kubernetes 中用于为工作负载（如 Pod）提供身份认证的机制，它代表了应用程序或服务的身份，而不是个人用户的身份。 1. ServiceAccount 的主要作用 为 Pod 中运行的进程提供身份标识。 控制对 Kubernetes API 的访问权限。 管理与外部系统集成时的身份认证。 实现 Pod 间的安全通信。  2. 与 UserAccount 的区别   特性 ServiceAccount UserAccount    用途 集群内部工作负载身份 集群外部用户身份   创建位置 集群内部 集群外部（由外部 IDP 管理）   命名空间 属于特定命名空间 集群全局   前缀 自动添加 system:serviceaccount: 无特定前缀   ...</div></div></div></a><a class="pagination-related" href="/posts/1000212/" title="Kubernetes Deployment 详解：从基础概念到更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Deployment 详解：从基础概念到更新策略</div></div><div class="info-2"><div class="info-item-1">一、Deployment 与 PodTemplate、容器的关系在深入更新策略之前，先理清 Deployment 到底是什么，以及它和 Pod、容器之间的关系。这三者在 Kubernetes 中是层层嵌套的，可以用「套娃」模型来理解。 1. 核心关系图示12345Deployment (管理应用部署)│└── PodTemplate (定义 Pod 的模板)    │    └── 容器 (实际运行的应用)  2. 三者的角色解析Deployment（部署控制器）：  作用：声明应用的期望状态（要运行多少副本、用什么镜像等）。 关键能力：滚动更新、回滚、扩缩容。 包含：一个 PodTemplate + 副本数等配置。  PodTemplate（Pod 模板）：  位置：在 Deployment 的 spec.template 字段中。 作用：定义要创建的 Pod 的「模具」。 包含：容器定义（1 个或多个）、存储卷配置、网络设置、节点选择规则等。  容器（Container）：  位置：在 PodTemplate 的 spec.containers 数组中。 作用：实际运行应用程...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">58</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81CNI-%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">一、CNI 概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81CNI-%E7%9A%84%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="toc-number">2.</span> <span class="toc-text">二、CNI 的工作原理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81CNI-%E6%8F%92%E4%BB%B6%E7%9A%84%E5%88%86%E7%B1%BB"><span class="toc-number">3.</span> <span class="toc-text">三、CNI 插件的分类</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%B8%B8%E8%A7%81%E7%9A%84-CNI-%E6%8F%92%E4%BB%B6"><span class="toc-number">4.</span> <span class="toc-text">四、常见的 CNI 插件</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Calico"><span class="toc-number">4.1.</span> <span class="toc-text">1. Calico</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Flannel"><span class="toc-number">4.2.</span> <span class="toc-text">2. Flannel</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-Canal"><span class="toc-number">4.3.</span> <span class="toc-text">3. Canal</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81CNI-%E6%8F%92%E4%BB%B6%E7%9A%84%E9%85%8D%E7%BD%AE%E4%B8%8E%E4%BD%BF%E7%94%A8"><span class="toc-number">5.</span> <span class="toc-text">五、CNI 插件的配置与使用</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81CNI-%E7%9A%84%E9%AB%98%E7%BA%A7%E4%B8%BB%E9%A2%98"><span class="toc-number">6.</span> <span class="toc-text">六、CNI 的高级主题</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E5%B0%8F%E7%BB%93"><span class="toc-number">7.</span> <span class="toc-text">七、小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000223/" title="在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用">在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用</a><time datetime="2026-08-07T03:00:00.000Z" title="发表于 2026-08-07 11:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000224/" title="Kubernetes 批处理新范式：Kueue 深度解析与实践">Kubernetes 批处理新范式：Kueue 深度解析与实践</a><time datetime="2026-08-07T02:00:00.000Z" title="发表于 2026-08-07 10:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000222/" title="Kubernetes Prometheus 详解：数据模型、架构与告警">Kubernetes Prometheus 详解：数据模型、架构与告警</a><time datetime="2026-08-07T02:00:00.000Z" title="发表于 2026-08-07 10:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000221/" title="Kubernetes 存储卷的 Attach 与 Mount 详解">Kubernetes 存储卷的 Attach 与 Mount 详解</a><time datetime="2026-08-06T10:30:00.000Z" title="发表于 2026-08-06 18:30:00">2026-08-06</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理">Kubernetes CSI 详解：架构、组件与工作原理</a><time datetime="2026-08-06T10:00:00.000Z" title="发表于 2026-08-06 18:00:00">2026-08-06</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '90ad4ceb22060c59c4358d05f32a4b78'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

@@ -1,0 +1,925 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes CSI 详解：架构、组件与工作原理 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="一、CSI 概述Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。 在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes CSI 详解：架构、组件与工作原理">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000220/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="一、CSI 概述Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。 在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-06T10:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-06T10:36:07.286Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="CSI">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="存储">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes CSI 详解：架构、组件与工作原理",
+  "url": "http://zmty365.github.io/posts/1000220/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-06T10:00:00.000Z",
+  "dateModified": "2026-08-06T10:36:07.286Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000220/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes CSI 详解：架构、组件与工作原理',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">58</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes CSI 详解：架构、组件与工作原理</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes CSI 详解：架构、组件与工作原理</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-06T10:00:00.000Z" title="发表于 2026-08-06 18:00:00">2026-08-06</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">3k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>10分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="一、CSI-概述"><a href="#一、CSI-概述" class="headerlink" title="一、CSI 概述"></a>一、CSI 概述</h2><p>Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。</p>
+<p>在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如 NFS、AWS EFS、Ceph、GlusterFS 等）对接，实现存储卷的创建、挂载、卸载等操作。CSI 的引入取代了旧的 FlexVolume 插件机制，提供了更灵活、更强大的存储管理能力。</p>
+<h2 id="二、CSI-系统架构"><a href="#二、CSI-系统架构" class="headerlink" title="二、CSI 系统架构"></a>二、CSI 系统架构</h2><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000220/00.png" class="">
+
+<p>CSI 在 Kubernetes 中分为控制端和节点端两部分：</p>
+<p><strong>Controller Server（控制服务器）</strong></p>
+<ul>
+<li>功能：负责存储卷的生命周期管理，包括卷的创建、删除、挂载、卸载等操作。</li>
+<li>部署方式：通常以 StatefulSet 或 Deployment 的形式运行，确保高可用性和唯一性。</li>
+<li>组件：<ul>
+<li>CSI 驱动容器：由第三方存储供应商提供，实现 CSI 接口的 IdentityServer 和 ControllerServer。</li>
+<li>Sidecar 容器（如 external-provisioner、external-attacher 等）：负责与 Kubernetes 组件（如 kube-controller-manager）通信，触发 CSI 驱动的操作。</li>
+</ul>
+</li>
+</ul>
+<p><strong>Node Server（节点服务器）</strong></p>
+<ul>
+<li>功能：负责节点级别的存储卷挂载和卸载操作。</li>
+<li>部署方式：以 DaemonSet 的形式运行，确保每个节点上都有 CSI 插件实例。</li>
+<li>组件：<ul>
+<li>CSI 驱动容器：由第三方存储供应商提供，实现 CSI 接口的 IdentityServer 和 NodeServer。</li>
+<li>Sidecar 容器（如 node-driver-registrar）：负责与 kubelet 通信，注册 CSI 驱动。</li>
+</ul>
+</li>
+</ul>
+<h2 id="三、CSI-组件构成及功能"><a href="#三、CSI-组件构成及功能" class="headerlink" title="三、CSI 组件构成及功能"></a>三、CSI 组件构成及功能</h2><h3 id="（一）CSI-Controller"><a href="#（一）CSI-Controller" class="headerlink" title="（一）CSI Controller"></a>（一）CSI Controller</h3><p>CSI Controller 是 CSI 插件的控制端，负责存储卷的生命周期管理。其主要组件包括：</p>
+<p><strong>Sidecar 容器</strong></p>
+<ul>
+<li><strong>external-provisioner</strong>：监听 PersistentVolumeClaim（PVC）的变化，触发 CSI 驱动的 <code>CreateVolume</code> 和 <code>DeleteVolume</code> 操作，实现存储卷的创建和删除。</li>
+<li><strong>external-attacher</strong>：监听 VolumeAttachment 的变化，触发 CSI 驱动的 <code>ControllerPublish</code> 和 <code>ControllerUnpublish</code> 操作，实现存储卷的挂载和卸载。</li>
+<li><strong>external-resizer</strong>：监听 PersistentVolumeClaim 的大小变化，触发 CSI 驱动的 <code>ResizeVolume</code> 操作，实现存储卷的容量调整（现已 GA）。</li>
+<li><strong>external-snapshotter</strong>：监听 VolumeSnapshot 的变化，触发 CSI 驱动的 <code>CreateSnapshot</code> 和 <code>DeleteSnapshot</code> 操作，实现存储卷的快照管理（现已 GA）。</li>
+</ul>
+<p><strong>CSI Driver 容器</strong></p>
+<p>由第三方存储供应商提供，实现 CSI 接口。通过 Unix Domain Socket 与 Sidecar 容器通信，完成具体的存储卷操作。</p>
+<p><strong>部署建议</strong>：CSI Controller 通常以 StatefulSet 或 Deployment 的形式运行，副本数设为 1，以确保唯一性。</p>
+<h3 id="（二）CSI-Node"><a href="#（二）CSI-Node" class="headerlink" title="（二）CSI Node"></a>（二）CSI Node</h3><p>CSI Node 是 CSI 插件的节点端，负责节点级别的存储卷管理。其主要组件包括：</p>
+<p><strong>Sidecar 容器</strong></p>
+<ul>
+<li><strong>node-driver-registrar</strong>：将 CSI 驱动注册到 kubelet，监听 kubelet 的操作请求，触发 CSI 驱动的节点端接口（如 <code>NodePublishVolume</code>、<code>NodeUnpublishVolume</code> 等）。</li>
+</ul>
+<p><strong>CSI Driver 容器</strong></p>
+<p>由第三方存储供应商提供，实现 CSI 接口。接收 kubelet 的调用，完成存储卷的挂载、卸载等操作。</p>
+<p><strong>通信方式</strong></p>
+<ul>
+<li>node-driver-registrar 与 kubelet 通过 Unix Domain Socket 通信。</li>
+<li>CSI Driver 容器与 kubelet 通过另一个 Unix Domain Socket 通信，并挂载 kubelet 的工作目录（默认为 <code>/var/lib/kubelet</code>），用于管理 Pod 的 Volume。</li>
+</ul>
+<p><strong>部署建议</strong>：CSI Node 以 DaemonSet 的形式运行，确保每个节点上都有 CSI 插件实例。</p>
+<h2 id="四、CSI-接口介绍"><a href="#四、CSI-接口介绍" class="headerlink" title="四、CSI 接口介绍"></a>四、CSI 接口介绍</h2><p>第三方存储厂商需实现 CSI 插件的三大接口：IdentityServer、ControllerServer、NodeServer。</p>
+<h3 id="IdentityServer"><a href="#IdentityServer" class="headerlink" title="IdentityServer"></a>IdentityServer</h3><p>IdentityServer 主要用于认证 CSI 插件的身份信息。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// IdentityServer is the server API for Identity service.</span></span><br><span class="line"><span class="keyword">type</span> IdentityServer <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// 获取 CSI 插件的信息，比如名称、版本号</span></span><br><span class="line">    GetPluginInfo(context.Context, *GetPluginInfoRequest) (*GetPluginInfoResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取 CSI 插件提供的能力，比如是否提供 ControllerService 能力</span></span><br><span class="line">    GetPluginCapabilities(context.Context, *GetPluginCapabilitiesRequest) (*GetPluginCapabilitiesResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取 CSI 插件健康状况</span></span><br><span class="line">    Probe(context.Context, *ProbeRequest) (*ProbeResponse, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="ControllerServer"><a href="#ControllerServer" class="headerlink" title="ControllerServer"></a>ControllerServer</h3><p>ControllerServer 主要负责存储卷及快照的创建&#x2F;删除以及挂接&#x2F;摘除操作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ControllerServer is the server API for Controller service.</span></span><br><span class="line"><span class="keyword">type</span> ControllerServer <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// 创建存储卷</span></span><br><span class="line">    CreateVolume(context.Context, *CreateVolumeRequest) (*CreateVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 删除存储卷</span></span><br><span class="line">    DeleteVolume(context.Context, *DeleteVolumeRequest) (*DeleteVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 挂接存储卷到特定节点</span></span><br><span class="line">    ControllerPublishVolume(context.Context, *ControllerPublishVolumeRequest) (*ControllerPublishVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 从特定节点摘除存储卷</span></span><br><span class="line">    ControllerUnpublishVolume(context.Context, *ControllerUnpublishVolumeRequest) (*ControllerUnpublishVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 验证存储卷能力是否满足要求，比如是否支持跨节点多读多写</span></span><br><span class="line">    ValidateVolumeCapabilities(context.Context, *ValidateVolumeCapabilitiesRequest) (*ValidateVolumeCapabilitiesResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 列举全部存储卷信息</span></span><br><span class="line">    ListVolumes(context.Context, *ListVolumesRequest) (*ListVolumesResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取存储资源池可用空间大小</span></span><br><span class="line">    GetCapacity(context.Context, *GetCapacityRequest) (*GetCapacityResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取 ControllerServer 支持功能点，比如是否支持快照能力</span></span><br><span class="line">    ControllerGetCapabilities(context.Context, *ControllerGetCapabilitiesRequest) (*ControllerGetCapabilitiesResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 创建快照</span></span><br><span class="line">    CreateSnapshot(context.Context, *CreateSnapshotRequest) (*CreateSnapshotResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 删除快照</span></span><br><span class="line">    DeleteSnapshot(context.Context, *DeleteSnapshotRequest) (*DeleteSnapshotResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取所有快照信息</span></span><br><span class="line">    ListSnapshots(context.Context, *ListSnapshotsRequest) (*ListSnapshotsResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 扩容存储卷</span></span><br><span class="line">    ControllerExpandVolume(context.Context, *ControllerExpandVolumeRequest) (*ControllerExpandVolumeResponse, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="NodeServer"><a href="#NodeServer" class="headerlink" title="NodeServer"></a>NodeServer</h3><p>NodeServer 主要负责存储卷挂载&#x2F;卸载操作。</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// NodeServer is the server API for Node service.</span></span><br><span class="line"><span class="keyword">type</span> NodeServer <span class="keyword">interface</span> &#123;</span><br><span class="line">    <span class="comment">// 将存储卷格式化并挂载至临时全局目录</span></span><br><span class="line">    NodeStageVolume(context.Context, *NodeStageVolumeRequest) (*NodeStageVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 将存储卷从临时全局目录卸载</span></span><br><span class="line">    NodeUnstageVolume(context.Context, *NodeUnstageVolumeRequest) (*NodeUnstageVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 将存储卷从临时目录 bind-mount 到目标目录</span></span><br><span class="line">    NodePublishVolume(context.Context, *NodePublishVolumeRequest) (*NodePublishVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 将存储卷从目标目录卸载</span></span><br><span class="line">    NodeUnpublishVolume(context.Context, *NodeUnpublishVolumeRequest) (*NodeUnpublishVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取存储卷的容量信息</span></span><br><span class="line">    NodeGetVolumeStats(context.Context, *NodeGetVolumeStatsRequest) (*NodeGetVolumeStatsResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 存储卷扩容</span></span><br><span class="line">    NodeExpandVolume(context.Context, *NodeExpandVolumeRequest) (*NodeExpandVolumeResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取 NodeServer 支持功能点，比如是否支持获取存储卷容量信息</span></span><br><span class="line">    NodeGetCapabilities(context.Context, *NodeGetCapabilitiesRequest) (*NodeGetCapabilitiesResponse, <span class="type">error</span>)</span><br><span class="line">    <span class="comment">// 获取 CSI 节点信息，比如最大支持卷个数</span></span><br><span class="line">    NodeGetInfo(context.Context, *NodeGetInfoRequest) (*NodeGetInfoResponse, <span class="type">error</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、CSI-Sidecar-组件介绍"><a href="#五、CSI-Sidecar-组件介绍" class="headerlink" title="五、CSI Sidecar 组件介绍"></a>五、CSI Sidecar 组件介绍</h2><p>为使 Kubernetes 适配 CSI 标准，社区将与 Kubernetes 相关的存储流程逻辑放在了 CSI Sidecar 组件中。</p>
+<h3 id="1-Node-Driver-Registrar"><a href="#1-Node-Driver-Registrar" class="headerlink" title="1. Node Driver Registrar"></a>1. Node Driver Registrar</h3><p><strong>功能</strong>：将外部 CSI 插件注册到 kubelet，从而使 kubelet 通过特定的 Unix Domain Socket 来调用外部 CSI 插件函数（如 <code>NodeGetInfo</code>、<code>NodeStageVolume</code>、<code>NodePublishVolume</code>、<code>NodeGetVolumeStats</code> 等）。</p>
+<p><strong>原理</strong>：通过 kubelet 外部插件注册机制实现注册，注册成功后：</p>
+<ul>
+<li><strong>为本节点 Node 资源打 annotation</strong>：调用外部 CSI 插件的 <code>NodeGetInfo</code> 函数，其返回值 <code>nodeID</code>、<code>driverName</code> 作为值用于 <code>csi.volume.kubernetes.io/nodeid</code> 键。</li>
+<li><strong>更新 Node Label</strong>：将 <code>NodeGetInfo</code> 返回的 <code>AccessibleTopology</code> 值用于节点的 Label。</li>
+<li><strong>更新 Node Status</strong>：将 <code>NodeGetInfo</code> 返回的 <code>maxAttachLimit</code>（节点最大可挂载卷数量）更新到 <code>Status.Allocatable: attachable-volumes-csi-[driverName]=[maxAttachLimit]</code>。</li>
+<li><strong>更新 CSINode 资源（没有则创建）</strong>：将 <code>driverName</code>、<code>nodeID</code>、<code>maxAttachLimit</code>、<code>AccessibleTopology</code> 更新到 Spec 中（拓扑仅保留 Key 值）。</li>
+</ul>
+<h3 id="2-External-Provisioner"><a href="#2-External-Provisioner" class="headerlink" title="2. External Provisioner"></a>2. External Provisioner</h3><p><strong>功能</strong>：创建&#x2F;删除实际的存储卷，以及代表存储卷的 PV 资源。</p>
+<p><strong>原理</strong>：启动时需指定参数 <code>--provisioner</code>，该参数指定 Provisioner 名称，与 StorageClass 中的 <code>provisioner</code> 字段对应。启动后会 watch 集群中的 PVC 和 PV 资源。</p>
+<p>对于 PVC 资源，判断其是否需要动态创建存储卷：</p>
+<ul>
+<li>PVC 的 annotation 中是否包含 <code>volume.beta.kubernetes.io/storage-provisioner</code> 键（由卷控制器创建），且其值是否与 Provisioner 名称相等。</li>
+<li>PVC 对应 StorageClass 的 <code>VolumeBindingMode</code> 字段若为 <code>WaitForFirstConsumer</code>，则 PVC 的 annotation 中必须包含 <code>volume.kubernetes.io/selected-node</code> 键且值不为空；若为 <code>Immediate</code> 则表示需要 Provisioner 立即提供动态存储卷。</li>
+<li>满足条件后，通过 Unix Domain Socket 调用 CSI 插件的 <code>CreateVolume</code> 函数，并创建 PV 资源，PV 名称为 <code>[Provisioner 指定的 PV 前缀]-[PVC uuid]</code>。</li>
+</ul>
+<p>对于 PV 资源，判断其是否需要删除：</p>
+<ul>
+<li>判断其 <code>.Status.Phase</code> 是否为 <code>Released</code>。</li>
+<li>判断其 <code>.Spec.PersistentVolumeReclaimPolicy</code> 是否为 <code>Delete</code>。</li>
+<li>判断其是否包含 annotation <code>pv.kubernetes.io/provisioned-by</code>，且值是否为自己。</li>
+<li>满足条件后，通过 Unix Domain Socket 调用 CSI 插件的 <code>DeleteVolume</code> 接口，并删除集群中的 PV 资源。</li>
+</ul>
+<h3 id="3-External-Attacher"><a href="#3-External-Attacher" class="headerlink" title="3. External Attacher"></a>3. External Attacher</h3><p><strong>功能</strong>：挂接&#x2F;摘除存储卷。</p>
+<p><strong>原理</strong>：内部会时刻 watch 集群中的 VolumeAttachment 资源和 PersistentVolume 资源。</p>
+<p>对于 VolumeAttachment 资源：</p>
+<ul>
+<li>从中获得 PV 的所有信息，如 volume ID、node ID、挂载 Secret 等。</li>
+<li>通过 <code>DeletionTimestamp</code> 字段是否为空判断是卷挂接还是卷摘除：<ul>
+<li>卷挂接：通过 Unix Domain Socket 调用 CSI 插件的 <code>ControllerPublishVolume</code> 接口。</li>
+<li>卷摘除：通过 Unix Domain Socket 调用 CSI 插件的 <code>ControllerUnpublishVolume</code> 接口。</li>
+</ul>
+</li>
+</ul>
+<p>对于 PersistentVolume 资源：</p>
+<ul>
+<li>在挂接时为相关 PV 打上 Finalizer：<code>external-attacher/[driver 名称]</code>。</li>
+<li>当 PV 处于删除状态时（<code>DeletionTimestamp</code> 非空），删除该 Finalizer。</li>
+</ul>
+<h3 id="4-External-Resizer"><a href="#4-External-Resizer" class="headerlink" title="4. External Resizer"></a>4. External Resizer</h3><p><strong>功能</strong>：扩容存储卷。</p>
+<p><strong>原理</strong>：内部会 watch 集群中的 PersistentVolumeClaim 资源。</p>
+<ul>
+<li>判断 PVC 是否需要扩容：状态需为 <code>Bound</code> 且 <code>.Status.Capacity</code> 与 <code>.Spec.Resources.Requests</code> 不等。</li>
+<li>更新 PVC 的 <code>.Status.Conditions</code>，表明处于 <code>Resizing</code> 状态。</li>
+<li>通过 Unix Domain Socket 调用 CSI 插件的 <code>ControllerExpandVolume</code> 接口，并更新 PV的 <code>.Spec.Capacity</code>。</li>
+<li>若 CSI 支持文件系统在线扩容：<code>ControllerExpandVolume</code> 返回值中 <code>NodeExpansionRequired</code> 为 <code>true</code>，将 PVC 的 <code>.Status.Conditions</code> 置为 <code>FileSystemResizePending</code>；随后 kubelet 的 Volume Manager 观察到需在线扩容，通过 Unix Domain Socket 调用 CSI 插件的 <code>NodeExpandVolume</code> 接口完成文件系统扩容。</li>
+<li>若不支持在线扩容，则扩容直接完成，清空 PVC 的 <code>.Status.Conditions</code> 并更新 <code>.Status.Capacity</code>。</li>
+</ul>
+<h3 id="5-External-Snapshotter"><a href="#5-External-Snapshotter" class="headerlink" title="5. External Snapshotter"></a>5. External Snapshotter</h3><p><strong>功能</strong>：管理存储卷快照。</p>
+<p><strong>原理</strong>：watch 集群中的 VolumeSnapshot、VolumeSnapshotContent 资源，通过 Unix Domain Socket 调用 CSI 插件的 <code>CreateSnapshot</code>、<code>DeleteSnapshot</code> 接口，实现快照的创建与删除。该能力现已 GA。</p>
+<h3 id="6-Livenessprobe"><a href="#6-Livenessprobe" class="headerlink" title="6. Livenessprobe"></a>6. Livenessprobe</h3><p><strong>功能</strong>：检查 CSI 插件是否正常。</p>
+<p><strong>原理</strong>：对外暴露一个 <code>/healthz</code> HTTP 端口以服务 kubelet 的探针，内部通过 Unix Domain Socket 调用 CSI 插件的 <code>Probe</code> 接口。</p>
+<h2 id="六、CSI-与-Kubernetes-组件的通信方式"><a href="#六、CSI-与-Kubernetes-组件的通信方式" class="headerlink" title="六、CSI 与 Kubernetes 组件的通信方式"></a>六、CSI 与 Kubernetes 组件的通信方式</h2><ul>
+<li><strong>CSI Controller 与 Kubernetes 的通信</strong>：external-provisioner、external-attacher 等 Sidecar 容器通过 Kubernetes API 监听资源对象的变化（如 PVC、VolumeAttachment），并通过 Unix Domain Socket 调用 CSI 驱动的接口。</li>
+<li><strong>CSI Node 与 kubelet 的通信</strong>：node-driver-registrar 通过 Unix Domain Socket 与 kubelet 通信；CSI Driver 容器通过 Unix Domain Socket 接收 kubelet 的调用，完成存储卷的挂载和卸载。</li>
+<li><strong>CSI 驱动与 Sidecar 的通信</strong>：通过 Unix Domain Socket 使用 gRPC 协议进行通信，Sidecar 容器通过 gRPC 调用 CSI 驱动的接口，完成具体的存储操作。</li>
+</ul>
+<h2 id="七、CSI-工作原理"><a href="#七、CSI-工作原理" class="headerlink" title="七、CSI 工作原理"></a>七、CSI 工作原理</h2><p>CSI 的工作流程围绕 Kubernetes 的存储资源（如 PersistentVolume、PersistentVolumeClaim）展开，主要包含以下步骤：</p>
+<ol>
+<li><strong>存储资源的创建</strong>：用户创建 PVC，指定存储需求（大小、访问模式等）。external-provisioner 监听到 PVC 变化，调用 CSI 驱动的 <code>CreateVolume</code> 接口创建存储卷。</li>
+<li><strong>存储卷的挂载</strong>：external-attacher 监听到 VolumeAttachment 变化，调用 CSI 驱动的 <code>ControllerPublish</code> 接口将存储卷与目标节点绑定；kubelet 通过 node-driver-registrar 调用 CSI 驱动的 <code>NodePublishVolume</code> 接口，将存储卷挂载到容器的指定路径。</li>
+<li><strong>存储卷的卸载</strong>：用户删除 PVC 或 VolumeAttachment。external-attacher 调用 <code>ControllerUnpublish</code> 接口解除存储卷与节点的绑定；kubelet 调用 <code>NodeUnpublishVolume</code> 接口将存储卷从容器中卸载。</li>
+<li><strong>存储卷的删除</strong>：external-provisioner 监听到 PVC 的删除操作，调用 CSI 驱动的 <code>DeleteVolume</code> 接口删除存储卷。</li>
+</ol>
+<pre><code class="highlight mermaid">graph TB
+    A[用户创建 PVC] --&gt; B[external-provisioner 调用 CreateVolume]
+    B --&gt; C[创建 PV 资源]
+    C --&gt; D[external-attacher 调用 ControllerPublish]
+    D --&gt; E[kubelet 调用 NodePublishVolume 挂载到容器]
+    E --&gt; F[Pod 使用存储卷]
+    F --&gt; G[删除 PVC/VolumeAttachment]
+    G --&gt; H[NodeUnpublish 卸载 + ControllerUnpublish 解绑]
+    H --&gt; I[external-provisioner 调用 DeleteVolume 删除卷]</code></pre>
+
+<h2 id="八、CSI-与-FlexVolume-的对比"><a href="#八、CSI-与-FlexVolume-的对比" class="headerlink" title="八、CSI 与 FlexVolume 的对比"></a>八、CSI 与 FlexVolume 的对比</h2><p>CSI 是 FlexVolume 的升级版，主要区别如下：</p>
+<table>
+<thead>
+<tr>
+<th>对比项</th>
+<th>FlexVolume</th>
+<th>CSI</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>接口标准化</td>
+<td>接口有限</td>
+<td>标准化接口，支持快照、扩容等复杂操作</td>
+</tr>
+<tr>
+<td>组件设计</td>
+<td>耦合较紧</td>
+<td>分离为 Controller 和 Node 两部分，部署与扩展更灵活</td>
+</tr>
+<tr>
+<td>通信协议</td>
+<td>依赖可执行文件调用</td>
+<td>使用 gRPC 协议，通信效率更高</td>
+</tr>
+</tbody></table>
+<h2 id="九、小结"><a href="#九、小结" class="headerlink" title="九、小结"></a>九、小结</h2><p>CSI 是 Kubernetes 中存储管理的重要组成部分，通过标准化的接口和灵活的组件设计，为用户提供了强大的存储管理能力。它以 IdentityServer、ControllerServer、NodeServer 三大接口为核心，配合 external-provisioner、external-attacher、external-resizer、external-snapshotter 等 Sidecar 组件，把创建、挂载、卸载、扩容、快照等能力标准化。掌握 CSI 的工作原理和组件构成，能够帮助我们更好地管理和优化集群中的存储资源。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000220/">http://zmty365.github.io/posts/1000220/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/%E5%AD%98%E5%82%A8/">存储</a><a class="post-meta__tags" href="/tags/CSI/">CSI</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000219/" title="Kubernetes CNI 详解：网络模型、工作原理与主流插件"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes CNI 详解：网络模型、工作原理与主流插件</div></div><div class="info-2"><div class="info-item-1">一、CNI 概述Container Network Interface（CNI） 是由 CNCF（Cloud Native Computing Foundation）维护的开源项目，旨在为容器提供一致的网络配置接口。CNI 定义了一组规范和插件，使容器运行时（如 containerd、CRI-O 等）能够与第三方网络插件（CNI 插件）通信，从而实现容器网络的配置和管理。 Kubernetes 集群内的网络模型定义了以下几点：  每个 Pod 都有独立的 IP 地址：Pod 内所有容器共享同一个网络命名空间，因此共享同一个 IP 和网络配置。 集群内 Pod 处于扁平网络：所有 Pod 可直接互相通信，无需经过 NAT。 Service 与 Cluster IP：Kubernetes 提供 Service 和 Cluster IP，使服务能在集群内被发现和访问。 外部访问：外部请求可通过 NodePort、LoadBalancer 或 Ingress 等方式访问集群内服务。    二、CNI 的工作原理CNI 的核心思想是把容器的网络配置与容器运行时解耦，通过插件机制实现网络配置...</div></div></div></a><a class="pagination-related" href="/posts/1000221/" title="Kubernetes 存储卷的 Attach 与 Mount 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes 存储卷的 Attach 与 Mount 详解</div></div><div class="info-2"><div class="info-item-1">在 Kubernetes 中，一个存储卷从被使用到最终释放，要经历 Attach（挂载设备） 和 Mount（挂载文件系统） 两个阶段。二者由不同组件负责、操作对象不同，理解它们的分工是理解 K8s 存储链路的关键。 一、核心概念对比   操作 Attach（挂载设备） Mount（挂载文件系统）    定义 将存储卷（如 EBS、NFS 等）连接到宿主机 将已 Attach 的存储设备映射为宿主机上的文件系统路径   执行者 云提供商驱动（如 AWS EBS CSI Driver）或存储系统插件 容器运行时（containerd、Docker）或 kubelet   操作对象 存储卷（Volume） 文件系统（Filesystem）   Kubernetes 资源 VolumeAttachment 对象 Pod.spec.volumes 定义   操作结果 宿主机可识别存储设备（如 /dev/xvdf） 容器可访问文件路径（如 /data）   二、工作流程与协作关系1. Attach 流程 架构图与图源：https://www.lixueduan.com/posts/kube...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000221/" title="Kubernetes 存储卷的 Attach 与 Mount 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes 存储卷的 Attach 与 Mount 详解</div></div><div class="info-2"><div class="info-item-1">在 Kubernetes 中，一个存储卷从被使用到最终释放，要经历 Attach（挂载设备） 和 Mount（挂载文件系统） 两个阶段。二者由不同组件负责、操作对象不同，理解它们的分工是理解 K8s 存储链路的关键。 一、核心概念对比   操作 Attach（挂载设备） Mount（挂载文件系统）    定义 将存储卷（如 EBS、NFS 等）连接到宿主机 将已 Attach 的存储设备映射为宿主机上的文件系统路径   执行者 云提供商驱动（如 AWS EBS CSI Driver）或存储系统插件 容器运行时（containerd、Docker）或 kubelet   操作对象 存储卷（Volume） 文件系统（Filesystem）   Kubernetes 资源 VolumeAttachment 对象 Pod.spec.volumes 定义   操作结果 宿主机可识别存储设备（如 /dev/xvdf） 容器可访问文件路径（如 /data）   二、工作流程与协作关系1. Attach 流程 架构图与图源：https://www.lixueduan.com/posts/kube...</div></div></div></a><a class="pagination-related" href="/posts/1000207/" title="Kubernetes hostPath 卷详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes hostPath 卷详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes hostPath 卷详解 本文是《存储：Volume、持久卷与配置容器》中 hostPath 小节的深入展开，聚焦生产实践中的用法、安全风险与排障。  一、基本概念hostPath 是 Kubernetes 提供的一种卷类型，它允许将宿主机的文件系统路径挂载到 Pod 中。这使得 Pod 能够直接访问宿主机上的文件、目录或设备。 正因为它直接打通了容器与宿主机的文件系统边界，hostPath 既强大又危险——用对了是日志采集、节点监控的利器，用错了会带来严重的安全风险（后文详述）。 二、核心用途 访问宿主机系统日志：如 /var/log。 访问节点特定数据：如节点配置、证书等。 开发调试：在开发环境中快速访问宿主机文件。 特殊系统组件：如监控代理、日志收集器等需要访问宿主机资源的组件。  三、配置语法12345volumes:  - name: volume-name    hostPath:      path: &quot;/absolute/path/on/host&quot;    # 必须是宿主机上的绝对路径      type: Director...</div></div></div></a><a class="pagination-related" href="/posts/1000206/" title="Kubernetes 存储：Volume、持久卷与配置容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 存储：Volume、持久卷与配置容器</div></div><div class="info-2"><div class="info-item-1">Kubernetes 存储：Volume、持久卷与配置容器Kubernetes 支持很多类型的卷，一个 Pod 可以同时使用任意数目的卷。按生命周期可以分成两大类：  临时卷：生命周期与 Pod 相同。Pod 被删除时，卷也随之销毁。 持久卷：生命周期可以比 Pod 更长。Pod 不再存在时，Kubernetes 不会销毁持久卷。  需要注意的是：对于给定 Pod 中的任何类型的卷，在容器重启期间数据都不会丢失——因为卷的生命周期跟着 Pod 走，而不是跟着容器走。 graph TD     A[Volume 卷] --&gt; B[临时卷]     A --&gt; C[持久卷]     B --&gt; B1[emptyDir&lt;br/&gt;Pod 删除即清空]     C --&gt; C1[hostPath&lt;br/&gt;绑定宿主机目录]     C --&gt; C2[nfs&lt;br/&gt;网络文件系统]     C --&gt; C3[PV / PVC&lt;br/&gt;持久卷抽象]  一、VolumeemptyDir对于定义了 emptyDir ...</div></div></div></a><a class="pagination-related" href="/posts/1000218/" title="Kubernetes 容器运行时详解：从原理、CRI 到运行时选型"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes 容器运行时详解：从原理、CRI 到运行时选型</div></div><div class="info-2"><div class="info-item-1">一、什么是容器运行时容器运行时（Container Runtime）提供容器的运行环境，是负责运行容器的软件。通俗地讲，它管理容器从拉取镜像、创建、启动、运行、销毁的完整生命周期。 以 Docker 为例，作为一个整体的容器运行时实现，主要提供：  制定容器镜像格式 构建容器镜像 运行容器  二、容器运行时的分类1. 高层运行时与低层运行时目前较流行的说法按功能实现把容器运行时分为两类：  低层运行时（low-level）：通常只关注 Namespace、Cgroups、镜像拆包等基础的容器运行实现（如 runc）。 高层运行时（high-level）：支持更多高级功能（如镜像管理、CRI 实现）的运行时（如 containerd、CRI-O）。  2. 按隔离技术分类（1）基于 hypervisor 的运行时  代表技术：KVM、Kata Containers 等。 原理：利用 hypervisor 在物理主机上创建多个虚拟机，每个虚拟机有独立的操作系统和资源隔离环境，容器运行在虚拟机内部，实现更强隔离。 优点：硬件级强隔离，安全性高，一个容器的故障或攻击很难影响其他容器或主机...</div></div></div></a><a class="pagination-related" href="/posts/1000222/" title="Kubernetes Prometheus 详解：数据模型、架构与告警"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">Kubernetes Prometheus 详解：数据模型、架构与告警</div></div><div class="info-2"><div class="info-item-1">Prometheus 是一个开源的系统监控和警报工具包，最初由 SoundCloud 开发，现已成为云原生计算基金会（CNCF）的毕业项目。它在 Kubernetes 生态系统中被广泛用于监控集群、节点、Pod 和服务的性能指标。 一、Prometheus 的核心概念1.1 数据模型Prometheus 使用时间序列数据模型，每个时间序列由以下部分组成：  指标名称（Metric Name）：描述被监控的内容（如 http_requests_total）。 标签（Labels）：键值对，用于区分相同指标的不同维度（如 method=&quot;GET&quot;、status=&quot;200&quot;）。 时间戳（Timestamp）：数据点的时间。 值（Value）：指标的数值。  例如： 1http_requests_total&#123;method=&quot;GET&quot;, status=&quot;200&quot;&#125; 1027  1.2 PromQLPrometheus 提供了一种强大的查询语言 PromQL，用于查询和聚合时间序列数据。例如：...</div></div></div></a><a class="pagination-related" href="/posts/1000212/" title="Kubernetes Deployment 详解：从基础概念到更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Deployment 详解：从基础概念到更新策略</div></div><div class="info-2"><div class="info-item-1">一、Deployment 与 PodTemplate、容器的关系在深入更新策略之前，先理清 Deployment 到底是什么，以及它和 Pod、容器之间的关系。这三者在 Kubernetes 中是层层嵌套的，可以用「套娃」模型来理解。 1. 核心关系图示12345Deployment (管理应用部署)│└── PodTemplate (定义 Pod 的模板)    │    └── 容器 (实际运行的应用)  2. 三者的角色解析Deployment（部署控制器）：  作用：声明应用的期望状态（要运行多少副本、用什么镜像等）。 关键能力：滚动更新、回滚、扩缩容。 包含：一个 PodTemplate + 副本数等配置。  PodTemplate（Pod 模板）：  位置：在 Deployment 的 spec.template 字段中。 作用：定义要创建的 Pod 的「模具」。 包含：容器定义（1 个或多个）、存储卷配置、网络设置、节点选择规则等。  容器（Container）：  位置：在 PodTemplate 的 spec.containers 数组中。 作用：实际运行应用程...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">58</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81CSI-%E6%A6%82%E8%BF%B0"><span class="toc-number">1.</span> <span class="toc-text">一、CSI 概述</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81CSI-%E7%B3%BB%E7%BB%9F%E6%9E%B6%E6%9E%84"><span class="toc-number">2.</span> <span class="toc-text">二、CSI 系统架构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81CSI-%E7%BB%84%E4%BB%B6%E6%9E%84%E6%88%90%E5%8F%8A%E5%8A%9F%E8%83%BD"><span class="toc-number">3.</span> <span class="toc-text">三、CSI 组件构成及功能</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89CSI-Controller"><span class="toc-number">3.1.</span> <span class="toc-text">（一）CSI Controller</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89CSI-Node"><span class="toc-number">3.2.</span> <span class="toc-text">（二）CSI Node</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81CSI-%E6%8E%A5%E5%8F%A3%E4%BB%8B%E7%BB%8D"><span class="toc-number">4.</span> <span class="toc-text">四、CSI 接口介绍</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#IdentityServer"><span class="toc-number">4.1.</span> <span class="toc-text">IdentityServer</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#ControllerServer"><span class="toc-number">4.2.</span> <span class="toc-text">ControllerServer</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#NodeServer"><span class="toc-number">4.3.</span> <span class="toc-text">NodeServer</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81CSI-Sidecar-%E7%BB%84%E4%BB%B6%E4%BB%8B%E7%BB%8D"><span class="toc-number">5.</span> <span class="toc-text">五、CSI Sidecar 组件介绍</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Node-Driver-Registrar"><span class="toc-number">5.1.</span> <span class="toc-text">1. Node Driver Registrar</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-External-Provisioner"><span class="toc-number">5.2.</span> <span class="toc-text">2. External Provisioner</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-External-Attacher"><span class="toc-number">5.3.</span> <span class="toc-text">3. External Attacher</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-External-Resizer"><span class="toc-number">5.4.</span> <span class="toc-text">4. External Resizer</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-External-Snapshotter"><span class="toc-number">5.5.</span> <span class="toc-text">5. External Snapshotter</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-Livenessprobe"><span class="toc-number">5.6.</span> <span class="toc-text">6. Livenessprobe</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81CSI-%E4%B8%8E-Kubernetes-%E7%BB%84%E4%BB%B6%E7%9A%84%E9%80%9A%E4%BF%A1%E6%96%B9%E5%BC%8F"><span class="toc-number">6.</span> <span class="toc-text">六、CSI 与 Kubernetes 组件的通信方式</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81CSI-%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="toc-number">7.</span> <span class="toc-text">七、CSI 工作原理</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AB%E3%80%81CSI-%E4%B8%8E-FlexVolume-%E7%9A%84%E5%AF%B9%E6%AF%94"><span class="toc-number">8.</span> <span class="toc-text">八、CSI 与 FlexVolume 的对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B9%9D%E3%80%81%E5%B0%8F%E7%BB%93"><span class="toc-number">9.</span> <span class="toc-text">九、小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000223/" title="在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用">在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用</a><time datetime="2026-08-07T03:00:00.000Z" title="发表于 2026-08-07 11:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000224/" title="Kubernetes 批处理新范式：Kueue 深度解析与实践">Kubernetes 批处理新范式：Kueue 深度解析与实践</a><time datetime="2026-08-07T02:00:00.000Z" title="发表于 2026-08-07 10:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000222/" title="Kubernetes Prometheus 详解：数据模型、架构与告警">Kubernetes Prometheus 详解：数据模型、架构与告警</a><time datetime="2026-08-07T02:00:00.000Z" title="发表于 2026-08-07 10:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000221/" title="Kubernetes 存储卷的 Attach 与 Mount 详解">Kubernetes 存储卷的 Attach 与 Mount 详解</a><time datetime="2026-08-06T10:30:00.000Z" title="发表于 2026-08-06 18:30:00">2026-08-06</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理">Kubernetes CSI 详解：架构、组件与工作原理</a><time datetime="2026-08-06T10:00:00.000Z" title="发表于 2026-08-06 18:00:00">2026-08-06</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '4543afa9e50db94b55ec8d3a8fc10343'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

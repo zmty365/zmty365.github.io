@@ -1,0 +1,909 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes 存储卷的 Attach 与 Mount 详解 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="在 Kubernetes 中，一个存储卷从被使用到最终释放，要经历 Attach（挂载设备） 和 Mount（挂载文件系统） 两个阶段。二者由不同组件负责、操作对象不同，理解它们的分工是理解 K8s 存储链路的关键。 一、核心概念对比   操作 Attach（挂载设备） Mount（挂载文件系统）    定义 将存储卷（如 EBS、NFS 等）连接到宿主机 将已 Attach 的存储设备映射为宿主">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes 存储卷的 Attach 与 Mount 详解">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000221/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="在 Kubernetes 中，一个存储卷从被使用到最终释放，要经历 Attach（挂载设备） 和 Mount（挂载文件系统） 两个阶段。二者由不同组件负责、操作对象不同，理解它们的分工是理解 K8s 存储链路的关键。 一、核心概念对比   操作 Attach（挂载设备） Mount（挂载文件系统）    定义 将存储卷（如 EBS、NFS 等）连接到宿主机 将已 Attach 的存储设备映射为宿主">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-06T10:30:00.000Z">
+<meta property="article:modified_time" content="2026-08-07T01:46:14.185Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Volume">
+<meta property="article:tag" content="kubelet">
+<meta property="article:tag" content="存储">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes 存储卷的 Attach 与 Mount 详解",
+  "url": "http://zmty365.github.io/posts/1000221/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-06T10:30:00.000Z",
+  "dateModified": "2026-08-07T01:46:14.185Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000221/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes 存储卷的 Attach 与 Mount 详解',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">58</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes 存储卷的 Attach 与 Mount 详解</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes 存储卷的 Attach 与 Mount 详解</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-06T10:30:00.000Z" title="发表于 2026-08-06 18:30:00">2026-08-06</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">2.2k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>9分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>在 Kubernetes 中，一个存储卷从被使用到最终释放，要经历 <strong>Attach（挂载设备）</strong> 和 <strong>Mount（挂载文件系统）</strong> 两个阶段。二者由不同组件负责、操作对象不同，理解它们的分工是理解 K8s 存储链路的关键。</p>
+<h2 id="一、核心概念对比"><a href="#一、核心概念对比" class="headerlink" title="一、核心概念对比"></a>一、核心概念对比</h2><table>
+<thead>
+<tr>
+<th>操作</th>
+<th>Attach（挂载设备）</th>
+<th>Mount（挂载文件系统）</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>定义</td>
+<td>将存储卷（如 EBS、NFS 等）连接到宿主机</td>
+<td>将已 Attach 的存储设备映射为宿主机上的文件系统路径</td>
+</tr>
+<tr>
+<td>执行者</td>
+<td>云提供商驱动（如 AWS EBS CSI Driver）或存储系统插件</td>
+<td>容器运行时（containerd、Docker）或 kubelet</td>
+</tr>
+<tr>
+<td>操作对象</td>
+<td>存储卷（Volume）</td>
+<td>文件系统（Filesystem）</td>
+</tr>
+<tr>
+<td>Kubernetes 资源</td>
+<td>VolumeAttachment 对象</td>
+<td>Pod.spec.volumes 定义</td>
+</tr>
+<tr>
+<td>操作结果</td>
+<td>宿主机可识别存储设备（如 <code>/dev/xvdf</code>）</td>
+<td>容器可访问文件路径（如 <code>/data</code>）</td>
+</tr>
+</tbody></table>
+<h2 id="二、工作流程与协作关系"><a href="#二、工作流程与协作关系" class="headerlink" title="二、工作流程与协作关系"></a>二、工作流程与协作关系</h2><h3 id="1-Attach-流程"><a href="#1-Attach-流程" class="headerlink" title="1. Attach 流程"></a>1. Attach 流程</h3><blockquote>
+<p>架构图与图源：<a target="_blank" rel="noopener" href="https://www.lixueduan.com/posts/kubernetes/14-pv-dynamic-provision-process/#1-attach">https://www.lixueduan.com/posts/kubernetes/14-pv-dynamic-provision-process/#1-attach</a>（外部链接与图床，可能已失效）</p>
+</blockquote>
+<h4 id="1-1-核心组件与职责"><a href="#1-1-核心组件与职责" class="headerlink" title="1.1 核心组件与职责"></a>1.1 核心组件与职责</h4><p>Kubernetes 的存储 Attach 流程由两个核心组件协作完成：</p>
+<ul>
+<li><strong>AD Controller（AttachDetach Controller）</strong>：位于 <code>kube-controller-manager</code> 中，负责计算节点上需要 Attach&#x2F;Detach 的卷，并创建 <code>VolumeAttachment</code> 资源。</li>
+<li><strong>external-attacher</strong>：独立运行的 CSI 插件，监听 <code>VolumeAttachment</code> 资源变化，调用 CSI Driver 的接口执行实际 Attach 操作。</li>
+</ul>
+<h4 id="1-2-Attach-触发条件"><a href="#1-2-Attach-触发条件" class="headerlink" title="1.2 Attach 触发条件"></a>1.2 Attach 触发条件</h4><p>AD Controller 通过以下逻辑触发 Attach 操作：</p>
+<ol>
+<li><strong>监听 Pod 调度</strong>：当 Pod 被调度到特定节点时，AD Controller 获取该节点上所有 Pod 的 Volume 列表。</li>
+<li><strong>计算待 Attach 卷</strong>：对比当前节点的 <code>status.volumesAttached</code> 与 Pod 需要的卷，找出未 Attach 的 PV。</li>
+<li><strong>多节点挂载检查</strong>：对 <code>ReadWriteOnce (RWO)</code> 类型的卷，检查是否已被其他节点挂载（若已挂载则报错）。</li>
+</ol>
+<h4 id="1-3-VolumeAttachment-资源"><a href="#1-3-VolumeAttachment-资源" class="headerlink" title="1.3 VolumeAttachment 资源"></a>1.3 VolumeAttachment 资源</h4><p>AD Controller 创建的 <code>VolumeAttachment</code> 对象包含三个关键信息：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">storage.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">VolumeAttachment</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">attacher:</span> <span class="string">nfs.csi.k8s.io</span>  <span class="comment"># CSI Driver 名称</span></span><br><span class="line">  <span class="attr">nodeName:</span> <span class="string">ee</span>              <span class="comment"># 目标节点</span></span><br><span class="line">  <span class="attr">source:</span></span><br><span class="line">    <span class="attr">persistentVolumeName:</span> <span class="string">pvc-047acd58-...</span>  <span class="comment"># 待挂载的 PV</span></span><br><span class="line"><span class="attr">status:</span></span><br><span class="line">  <span class="attr">attached:</span> <span class="literal">false</span>  <span class="comment"># 挂载状态（由 external-attacher 更新）</span></span><br></pre></td></tr></table></figure>
+
+<h4 id="1-4-详细执行流程"><a href="#1-4-详细执行流程" class="headerlink" title="1.4 详细执行流程"></a>1.4 详细执行流程</h4><pre><code class="highlight mermaid">sequenceDiagram
+    participant ADController
+    participant VolumeAttachment
+    participant ExternalAttacher
+    participant CSIDriver
+    participant CloudProvider
+
+    ADController-&gt;&gt;VolumeAttachment: 创建 VolumeAttachment 资源
+    ExternalAttacher-&gt;&gt;VolumeAttachment: 监听资源变化
+    ExternalAttacher-&gt;&gt;CSIDriver: 调用 ControllerPublishVolume(PV, Node)
+    CSIDriver-&gt;&gt;CloudProvider: 调用云 API（如 AWS EBS Attach）
+    CloudProvider--&gt;&gt;CSIDriver: 返回设备 ID（如 /dev/xvdf）
+    CSIDriver--&gt;&gt;ExternalAttacher: 返回成功
+    ExternalAttacher-&gt;&gt;VolumeAttachment: 更新 status.attached=true
+    ADController-&gt;&gt;Node: 更新 status.volumesAttached</code></pre>
+
+<h3 id="2-Mount-流程"><a href="#2-Mount-流程" class="headerlink" title="2. Mount 流程"></a>2. Mount 流程</h3><p>Kubernetes 的 Mount 流程由 <code>kubelet</code> 的 <code>volumeManager</code> 组件管理。它采用「双缓存 + 周期性协调」的机制：维护期望状态与实际状态两份缓存，由协调器周期性比对并执行挂载&#x2F;卸载。</p>
+<h4 id="2-1-核心组件与数据结构"><a href="#2-1-核心组件与数据结构" class="headerlink" title="2.1 核心组件与数据结构"></a>2.1 核心组件与数据结构</h4><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> volumeManager <span class="keyword">struct</span> &#123;</span><br><span class="line">    desiredStateOfWorld cache.DesiredStateOfWorld <span class="comment">// 期望状态缓存</span></span><br><span class="line">    actualStateOfWorld  cache.ActualStateOfWorld <span class="comment">// 实际状态缓存</span></span><br><span class="line">    reconciler          reconciler.Reconciler     <span class="comment">// 状态协调器</span></span><br><span class="line">    desiredStateOfWorldPopulator populator.DesiredStateOfWorldPopulator <span class="comment">// 状态填充器</span></span><br><span class="line">    <span class="comment">// ...其他组件</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><strong>desiredStateOfWorld</strong>：保存当前节点上所有 Volume 期望的状态。</li>
+<li><strong>actualStateOfWorld</strong>：保存当前节点上所有 Volume 实际的状态。</li>
+<li><strong>reconciler</strong>：周期性比较两个状态，执行挂载&#x2F;卸载操作。</li>
+<li><strong>desiredStateOfWorldPopulator</strong>：处理节点上的 Pod，更新期望状态。</li>
+</ul>
+<h4 id="2-2-状态同步机制"><a href="#2-2-状态同步机制" class="headerlink" title="2.2 状态同步机制"></a>2.2 状态同步机制</h4><p><code>reconciler</code> 通过周期性对比状态执行挂载&#x2F;卸载操作：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(rc *reconciler)</span></span> reconcile() &#123;</span><br><span class="line">    <span class="keyword">if</span> rc.readyToUnmount() &#123;</span><br><span class="line">        rc.unmountVolumes() <span class="comment">// 卸载不再需要的卷</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    rc.mountOrAttachVolumes() <span class="comment">// 挂载新卷或处理已挂载卷</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> rc.readyToUnmount() &#123;</span><br><span class="line">        rc.unmountDetachDevices() <span class="comment">// 卸载设备</span></span><br><span class="line">        rc.cleanOrphanVolumes()   <span class="comment">// 清理孤立卷</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 更新状态同步时间</span></span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(rc.volumesNeedUpdateFromNodeStatus) != <span class="number">0</span> &#123;</span><br><span class="line">        rc.updateReconstructedFromNodeStatus()</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> <span class="built_in">len</span>(rc.volumesNeedUpdateFromNodeStatus) == <span class="number">0</span> &#123;</span><br><span class="line">        rc.updateLastSyncTime()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-3-卸载流程"><a href="#2-3-卸载流程" class="headerlink" title="2.3 卸载流程"></a>2.3 卸载流程</h4><p>遍历 <code>actualStateOfWorld</code>，卸载不再需要的卷：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(rc *reconciler)</span></span> unmountVolumes() &#123;</span><br><span class="line">    <span class="keyword">for</span> _, mountedVolume := <span class="keyword">range</span> rc.actualStateOfWorld.GetAllMountedVolumes() &#123;</span><br><span class="line">        <span class="comment">// 检查是否有未完成的操作</span></span><br><span class="line">        <span class="keyword">if</span> rc.operationExecutor.IsOperationPending(mountedVolume.VolumeName, mountedVolume.PodName, nestedpendingoperations.EmptyNodeName) &#123;</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 如果卷不在期望状态中，执行卸载</span></span><br><span class="line">        <span class="keyword">if</span> !rc.desiredStateOfWorld.PodExistsInVolume(mountedVolume.PodName, mountedVolume.VolumeName, mountedVolume.SELinuxMountContext) &#123;</span><br><span class="line">            err := rc.operationExecutor.UnmountVolume(</span><br><span class="line">                mountedVolume.MountedVolume, rc.actualStateOfWorld, rc.kubeletPodsDir)</span><br><span class="line">            <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">                klog.ErrorS(err, <span class="string">&quot;UnmountVolume failed&quot;</span>)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-4-挂载流程"><a href="#2-4-挂载流程" class="headerlink" title="2.4 挂载流程"></a>2.4 挂载流程</h4><p>遍历 <code>desiredStateOfWorld</code>，挂载新卷或处理需要更新的卷：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(rc *reconciler)</span></span> mountOrAttachVolumes() &#123;</span><br><span class="line">    <span class="keyword">for</span> _, volumeToMount := <span class="keyword">range</span> rc.desiredStateOfWorld.GetVolumesToMount() &#123;</span><br><span class="line">        <span class="comment">// 检查是否有未完成的操作</span></span><br><span class="line">        <span class="keyword">if</span> rc.operationExecutor.IsOperationPending(volumeToMount.VolumeName, nestedpendingoperations.EmptyUniquePodName, nestedpendingoperations.EmptyNodeName) &#123;</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 检查卷状态</span></span><br><span class="line">        volMounted, devicePath, err := rc.actualStateOfWorld.PodExistsInVolume(</span><br><span class="line">            volumeToMount.PodName, volumeToMount.VolumeName,</span><br><span class="line">            volumeToMount.DesiredPersistentVolumeSize, volumeToMount.SELinuxLabel)</span><br><span class="line"></span><br><span class="line">        volumeToMount.DevicePath = devicePath</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 根据不同错误类型执行不同操作</span></span><br><span class="line">        <span class="keyword">switch</span> &#123;</span><br><span class="line">        <span class="keyword">case</span> cache.IsSELinuxMountMismatchError(err):</span><br><span class="line">            <span class="comment">// SELinux 上下文不匹配，标记错误</span></span><br><span class="line">        <span class="keyword">case</span> cache.IsVolumeNotAttachedError(err):</span><br><span class="line">            <span class="comment">// 卷未挂载，等待 Attach</span></span><br><span class="line">            rc.waitForVolumeAttach(volumeToMount)</span><br><span class="line">        <span class="keyword">case</span> !volMounted || cache.IsRemountRequiredError(err):</span><br><span class="line">            <span class="comment">// 卷未挂载或需要重新挂载</span></span><br><span class="line">            rc.mountAttachedVolumes(volumeToMount, err)</span><br><span class="line">        <span class="keyword">case</span> cache.IsFSResizeRequiredError(err):</span><br><span class="line">            <span class="comment">// 文件系统需要扩容</span></span><br><span class="line">            rc.expandVolume(volumeToMount, err.CurrentSize)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-5-实际挂载操作"><a href="#2-5-实际挂载操作" class="headerlink" title="2.5 实际挂载操作"></a>2.5 实际挂载操作</h4><p>通过 <code>operationGenerator</code> 执行实际挂载，并更新状态：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(og *operationGenerator)</span></span> GenerateMountVolumeFunc(...) volumetypes.GeneratedOperations &#123;</span><br><span class="line">    mountVolumeFunc := <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">        <span class="comment">// 获取卷插件</span></span><br><span class="line">        volumePlugin, err := og.volumePluginMgr.FindPluginBySpec(volumeToMount.VolumeSpec)</span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(err, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 创建挂载器</span></span><br><span class="line">        volumeMounter, err := volumePlugin.NewMounter(</span><br><span class="line">            volumeToMount.VolumeSpec, volumeToMount.Pod)</span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(err, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 等待设备挂载（如果需要）</span></span><br><span class="line">        devicePath, err := volumeAttacher.WaitForAttach(</span><br><span class="line">            volumeToMount.VolumeSpec, devicePath, volumeToMount.Pod, waitForAttachTimeout)</span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(err, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 执行挂载</span></span><br><span class="line">        mountErr := volumeMounter.SetUp(volume.MounterArgs&#123;...&#125;)</span><br><span class="line">        <span class="keyword">if</span> mountErr != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(mountErr, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 扩容文件系统（如果需要）</span></span><br><span class="line">        <span class="keyword">if</span> resizeNeeded &#123;</span><br><span class="line">            err = og.expandVolumeDuringMount(volumeToMount, actualStateOfWorld, resizeOptions)</span><br><span class="line">            <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> volumetypes.NewOperationContext(err, <span class="literal">nil</span>, migrated)</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 更新实际状态</span></span><br><span class="line">        markVolMountedErr := actualStateOfWorld.MarkVolumeAsMounted(markOpts)</span><br><span class="line">        <span class="keyword">if</span> markVolMountedErr != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(markVolMountedErr, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> volumetypes.NewOperationContext(<span class="literal">nil</span>, <span class="literal">nil</span>, migrated)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> volumetypes.GeneratedOperations&#123;</span><br><span class="line">        OperationFunc: mountVolumeFunc,</span><br><span class="line">        <span class="comment">// ...其他回调函数</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-6-实际卸载操作"><a href="#2-6-实际卸载操作" class="headerlink" title="2.6 实际卸载操作"></a>2.6 实际卸载操作</h4><p>通过 <code>operationGenerator</code> 执行卸载，并更新状态：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(og *operationGenerator)</span></span> GenerateUnmountVolumeFunc(...) &#123;</span><br><span class="line">    unmountVolumeFunc := <span class="function"><span class="keyword">func</span><span class="params">()</span></span> &#123;</span><br><span class="line">        <span class="comment">// 获取卸载器</span></span><br><span class="line">        volumeUnmounter, err := volumePlugin.NewUnmounter(</span><br><span class="line">            volumeToUnmount.InnerVolumeSpecName, volumeToUnmount.PodUID)</span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(err, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 清理子路径挂载点</span></span><br><span class="line">        <span class="keyword">if</span> err := subpather.CleanSubPaths(podDir, volumeToUnmount.InnerVolumeSpecName); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(err, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 执行卸载</span></span><br><span class="line">        unmountErr := volumeUnmounter.TearDown()</span><br><span class="line">        <span class="keyword">if</span> unmountErr != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="comment">// 标记卷状态为不确定</span></span><br><span class="line">            actualStateOfWorld.MarkVolumeMountAsUncertain(opts)</span><br><span class="line">            <span class="keyword">return</span> volumetypes.NewOperationContext(unmountErr, <span class="literal">nil</span>, migrated)</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 更新实际状态</span></span><br><span class="line">        actualStateOfWorld.MarkVolumeAsUnmounted(</span><br><span class="line">            volumeToUnmount.PodName, volumeToUnmount.VolumeName)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> volumetypes.NewOperationContext(<span class="literal">nil</span>, <span class="literal">nil</span>, migrated)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> volumetypes.GeneratedOperations&#123;</span><br><span class="line">        OperationFunc: unmountVolumeFunc,</span><br><span class="line">        <span class="comment">// ...其他回调函数</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-7-期望状态更新机制"><a href="#2-7-期望状态更新机制" class="headerlink" title="2.7 期望状态更新机制"></a>2.7 期望状态更新机制</h4><p><code>desiredStateOfWorldPopulator</code> 周期性处理 Pod，更新期望状态：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(dswp *desiredStateOfWorldPopulator)</span></span> Run(ctx context.Context, sourcesReady config.SourcesReady) &#123;</span><br><span class="line">    <span class="comment">// 周期性执行状态填充</span></span><br><span class="line">    wait.UntilWithContext(ctx, dswp.populatorLoop, dswp.loopSleepDuration)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(dswp *desiredStateOfWorldPopulator)</span></span> processPodVolumes(ctx context.Context, pod *v1.Pod) &#123;</span><br><span class="line">    <span class="keyword">for</span> _, podVolume := <span class="keyword">range</span> pod.Spec.Volumes &#123;</span><br><span class="line">        <span class="comment">// 将 Pod 的卷添加到期望状态</span></span><br><span class="line">        uniqueVolumeName, err := dswp.desiredStateOfWorld.AddPodToVolume(</span><br><span class="line">            uniquePodName, pod, volumeSpec, podVolume.Name, volumeGIDValue, seLinuxContainerContexts[podVolume.Name])</span><br><span class="line">        <span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">            klog.ErrorS(err, <span class="string">&quot;Failed to add pod to volume&quot;</span>)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-8-关键数据结构"><a href="#2-8-关键数据结构" class="headerlink" title="2.8 关键数据结构"></a>2.8 关键数据结构</h4><ul>
+<li><strong>volumesToMount</strong>：记录需要挂载的卷。</li>
+</ul>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> volumeToMount <span class="keyword">struct</span> &#123;</span><br><span class="line">    volumeName                     v1.UniqueVolumeName</span><br><span class="line">    podsToMount                    <span class="keyword">map</span>[types.UniquePodName]podToMount</span><br><span class="line">    pluginIsAttachable             <span class="type">bool</span></span><br><span class="line">    pluginIsDeviceMountable        <span class="type">bool</span></span><br><span class="line">    volumeGIDValue                 <span class="type">string</span></span><br><span class="line">    desiredSizeLimit               *resource.Quantity</span><br><span class="line">    effectiveSELinuxMountFileLabel <span class="type">string</span></span><br><span class="line">    <span class="comment">// ...其他属性</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h4 id="2-9-Mount-流程总结"><a href="#2-9-Mount-流程总结" class="headerlink" title="2.9 Mount 流程总结"></a>2.9 Mount 流程总结</h4><ol>
+<li><strong>状态初始化</strong>：<code>desiredStateOfWorldPopulator</code> 从 Pod 中收集卷信息，更新期望状态。</li>
+<li><strong>状态对比</strong>：<code>reconciler</code> 周期性比较期望状态和实际状态。</li>
+<li><strong>卸载操作</strong>：对不再需要的卷执行卸载。</li>
+<li><strong>挂载操作</strong>：对新增卷或需要更新的卷执行挂载。</li>
+<li><strong>状态更新</strong>：挂载&#x2F;卸载成功后更新实际状态。</li>
+<li><strong>错误处理</strong>：处理挂载&#x2F;卸载过程中的各种异常情况。</li>
+</ol>
+<p>通过这种双缓存、周期性同步的机制，Kubernetes 确保了节点上卷的状态始终与期望状态一致。</p>
+<h3 id="3-协作关系"><a href="#3-协作关系" class="headerlink" title="3. 协作关系"></a>3. 协作关系</h3><p>Attach 与 Mount 在存储卷的整个生命周期中前后衔接：</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">存储卷生命周期：</span><br><span class="line">创建 PV/PVC → Attach（设备挂载到宿主机） → Mount（文件系统挂载到容器） →</span><br><span class="line">Unmount（从容器卸载） → Detach（从宿主机卸载） → 删除 PV/PVC</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、常见存储类型的-Attach-Mount-差异"><a href="#三、常见存储类型的-Attach-Mount-差异" class="headerlink" title="三、常见存储类型的 Attach&#x2F;Mount 差异"></a>三、常见存储类型的 Attach&#x2F;Mount 差异</h2><p>不同存储类型对 Attach&#x2F;Mount 两阶段的需求不同，例如网络存储通常无需显式 Attach，宿主机路径则两阶段都不需要：</p>
+<table>
+<thead>
+<tr>
+<th>存储类型</th>
+<th>Attach 操作</th>
+<th>Mount 操作</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EBS（块存储）</td>
+<td>将 EBS 卷挂载到 EC2 实例</td>
+<td>在实例上格式化并挂载文件系统（如 ext4）</td>
+</tr>
+<tr>
+<td>NFS（网络存储）</td>
+<td>建立网络连接（无需显式 Attach）</td>
+<td>通过 NFS 客户端挂载远程文件系统</td>
+</tr>
+<tr>
+<td>HostPath（宿主机路径）</td>
+<td>无（已在宿主机上）</td>
+<td>直接将宿主机路径挂载到容器</td>
+</tr>
+<tr>
+<td>Ceph RBD</td>
+<td>将 RBD 设备映射到宿主机</td>
+<td>在宿主机上挂载 RBD 设备为文件系统</td>
+</tr>
+</tbody></table>
+<h2 id="四、小结"><a href="#四、小结" class="headerlink" title="四、小结"></a>四、小结</h2><p>Attach 和 Mount 是 Kubernetes 存储卷落到 Pod 上的两个前后衔接的阶段：<strong>Attach</strong> 由 AD Controller 与 external-attacher 协作，通过 <code>VolumeAttachment</code> 资源把存储设备连接到宿主机；<strong>Mount</strong> 由 kubelet 的 <code>volumeManager</code> 以「期望状态 &#x2F; 实际状态」双缓存加周期性协调的方式，把已 Attach 的设备挂载为容器可访问的文件路径。不同存储类型（块存储、网络存储、宿主机路径）对这两阶段的需求各不相同。理解这套分工，有助于我们排查存储卷挂载卡住、多节点冲突、卸载残留等常见问题。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000221/">http://zmty365.github.io/posts/1000221/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/%E5%AD%98%E5%82%A8/">存储</a><a class="post-meta__tags" href="/tags/Volume/">Volume</a><a class="post-meta__tags" href="/tags/kubelet/">kubelet</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes CSI 详解：架构、组件与工作原理</div></div><div class="info-2"><div class="info-item-1">一、CSI 概述Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。 在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如 NFS、AWS EFS、Ceph、GlusterFS 等）对接，实现存储卷的创建、挂载、卸载等操作。CSI 的引入取代了旧的 FlexVolume 插件机制，提供了更灵活、更强大的存储管理能力。 二、CSI 系统架构  CSI 在 Kubernetes 中分为控制端和节点端两部分： Controller Server（控制服务器）  功能：负责存储卷的生命周期管理，包括卷的创建、删除、挂载、卸载等操作。 部署方式：通常以 StatefulSet 或 Deployment 的形式运行，确保高可用性和唯一性。 组件： CSI 驱动容器：由第三方存储供应商提供，实现 CSI 接口的 Iden...</div></div></div></a><a class="pagination-related" href="/posts/1000224/" title="Kubernetes 批处理新范式：Kueue 深度解析与实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes 批处理新范式：Kueue 深度解析与实践</div></div><div class="info-2"><div class="info-item-1">随着机器学习训练与高性能计算（HPC）向云端迁移，Kubernetes 逐渐从微服务调度扩展到批处理领域。Kueue 应运而生，成为专为 Kubernetes 设计的作业队列管理系统，聚焦资源配额管理、作业优先级调度与异构资源编排。本文整合 Kueue 的架构定位、核心资源对象、高级调度策略与生产实践，帮助你系统性地理解它。  提示：本文示例统一采用稳定版 API kueue.x-k8s.io/v1beta1。早期文档中出现的 v1alpha2 已废弃，字段结构也有差异（如 ResourceFlavor 的污点从顶层 taints 规范到了 spec.nodeTaints），请以本文为准。  一、背景与演进：Kubernetes 的批处理进化之路随着机器学习训练需求和高性能计算向云端的迁移，Kubernetes 逐渐从微服务调度扩展到批处理领域。2022 年 Google Cloud Next 大会展示的案例（PGS 使用 120 万 vCPU 构建云端超算）标志着这一趋势的加速。传统批处理框架如 Slurm &#x2F; Mesos 虽在特定场景表现优异，但缺乏 Kuberne...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000206/" title="Kubernetes 存储：Volume、持久卷与配置容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 存储：Volume、持久卷与配置容器</div></div><div class="info-2"><div class="info-item-1">Kubernetes 存储：Volume、持久卷与配置容器Kubernetes 支持很多类型的卷，一个 Pod 可以同时使用任意数目的卷。按生命周期可以分成两大类：  临时卷：生命周期与 Pod 相同。Pod 被删除时，卷也随之销毁。 持久卷：生命周期可以比 Pod 更长。Pod 不再存在时，Kubernetes 不会销毁持久卷。  需要注意的是：对于给定 Pod 中的任何类型的卷，在容器重启期间数据都不会丢失——因为卷的生命周期跟着 Pod 走，而不是跟着容器走。 graph TD     A[Volume 卷] --&gt; B[临时卷]     A --&gt; C[持久卷]     B --&gt; B1[emptyDir&lt;br/&gt;Pod 删除即清空]     C --&gt; C1[hostPath&lt;br/&gt;绑定宿主机目录]     C --&gt; C2[nfs&lt;br/&gt;网络文件系统]     C --&gt; C3[PV / PVC&lt;br/&gt;持久卷抽象]  一、VolumeemptyDir对于定义了 emptyDir ...</div></div></div></a><a class="pagination-related" href="/posts/1000207/" title="Kubernetes hostPath 卷详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes hostPath 卷详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes hostPath 卷详解 本文是《存储：Volume、持久卷与配置容器》中 hostPath 小节的深入展开，聚焦生产实践中的用法、安全风险与排障。  一、基本概念hostPath 是 Kubernetes 提供的一种卷类型，它允许将宿主机的文件系统路径挂载到 Pod 中。这使得 Pod 能够直接访问宿主机上的文件、目录或设备。 正因为它直接打通了容器与宿主机的文件系统边界，hostPath 既强大又危险——用对了是日志采集、节点监控的利器，用错了会带来严重的安全风险（后文详述）。 二、核心用途 访问宿主机系统日志：如 /var/log。 访问节点特定数据：如节点配置、证书等。 开发调试：在开发环境中快速访问宿主机文件。 特殊系统组件：如监控代理、日志收集器等需要访问宿主机资源的组件。  三、配置语法12345volumes:  - name: volume-name    hostPath:      path: &quot;/absolute/path/on/host&quot;    # 必须是宿主机上的绝对路径      type: Director...</div></div></div></a><a class="pagination-related" href="/posts/1000209/" title="Kubernetes 静态 Pod（Static Pod）详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 静态 Pod（Static Pod）详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 静态 Pod（Static Pod）详解平常我们创建的 Pod 都要经过 API Server，由控制面统一调度和管理。但集群的核心组件（比如 API Server 自己）在集群还没起来时怎么办？这时就轮到静态 Pod 登场——它由 kubelet 直接管理，绕过 API Server，是集群自举（bootstrap）的关键机制。 一、静态 Pod 的定义静态 Pod 是由 kubelet 直接管理的 Pod，其配置文件通常存于节点特定目录。kubelet 定时扫描这些配置文件，依其内容创建、更新或删除 Pod。与经 API 服务器管理的 Pod（如 Deployment、DaemonSet 等）不同，静态 Pod 不受 Kubernetes 控制面直接管控。 静态 Pod 具有以下特点：  直接管理：由 kubelet 直接管理，无需依赖 API 服务器。 本地控制：kubelet 通过扫描配置文件目录实现对静态 Pod 的管理。 节点绑定：始终绑定在创建它的节点，不能跨节点调度。 配置简单：配置文件简单直接，但灵活性欠佳。  二、静态 Pod 的创建方式...</div></div></div></a><a class="pagination-related" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes CSI 详解：架构、组件与工作原理</div></div><div class="info-2"><div class="info-item-1">一、CSI 概述Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。 在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如 NFS、AWS EFS、Ceph、GlusterFS 等）对接，实现存储卷的创建、挂载、卸载等操作。CSI 的引入取代了旧的 FlexVolume 插件机制，提供了更灵活、更强大的存储管理能力。 二、CSI 系统架构  CSI 在 Kubernetes 中分为控制端和节点端两部分： Controller Server（控制服务器）  功能：负责存储卷的生命周期管理，包括卷的创建、删除、挂载、卸载等操作。 部署方式：通常以 StatefulSet 或 Deployment 的形式运行，确保高可用性和唯一性。 组件： CSI 驱动容器：由第三方存储供应商提供，实现 CSI 接口的 Iden...</div></div></div></a><a class="pagination-related" href="/posts/1000203/" title="Kubernetes 之 Pod 资源调度"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 之 Pod 资源调度</div></div><div class="info-2"><div class="info-item-1">Kubernetes 之 Pod 资源调度一、Pod 资源调度总览API Server 在接受客户端提交的 Pod 对象创建请求后，会通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 这一创建 Pod 对象的调度过程中有 3 个阶段：节点预选、节点优选、节点选定，从而筛选出最佳的节点。  节点预选：基于一系列的预选规则对每个节点进行检查，将那些不符合条件的节点过滤掉，从而完成节点的预选。 节点优选：对预选出的节点进行优先级排序，以便选出最合适运行 Pod 对象的节点。 节点选定：从优先级排序结果中挑选出优先级最高的节点运行 Pod，当这类节点多于 1 个时，则进行随机选择。  预选策略实际上就是节点过滤器，例如节点标签必须能够匹配到 Pod 资源的标签选择器（MatchNodeSelector 实现的规则），以及 Pod 容器的资源请求量不能大于节点上剩余的可分配资源（PodFitsResources 规则）等等。执行预选操作时，调度器会逐一根据规则进行筛选，如果预选没能选定一个合适的节点，此时 Pod 会一直处于 Pending 状...</div></div></div></a><a class="pagination-related" href="/posts/1000224/" title="Kubernetes 批处理新范式：Kueue 深度解析与实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">Kubernetes 批处理新范式：Kueue 深度解析与实践</div></div><div class="info-2"><div class="info-item-1">随着机器学习训练与高性能计算（HPC）向云端迁移，Kubernetes 逐渐从微服务调度扩展到批处理领域。Kueue 应运而生，成为专为 Kubernetes 设计的作业队列管理系统，聚焦资源配额管理、作业优先级调度与异构资源编排。本文整合 Kueue 的架构定位、核心资源对象、高级调度策略与生产实践，帮助你系统性地理解它。  提示：本文示例统一采用稳定版 API kueue.x-k8s.io/v1beta1。早期文档中出现的 v1alpha2 已废弃，字段结构也有差异（如 ResourceFlavor 的污点从顶层 taints 规范到了 spec.nodeTaints），请以本文为准。  一、背景与演进：Kubernetes 的批处理进化之路随着机器学习训练需求和高性能计算向云端的迁移，Kubernetes 逐渐从微服务调度扩展到批处理领域。2022 年 Google Cloud Next 大会展示的案例（PGS 使用 120 万 vCPU 构建云端超算）标志着这一趋势的加速。传统批处理框架如 Slurm &#x2F; Mesos 虽在特定场景表现优异，但缺乏 Kuberne...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">33</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">58</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5%E5%AF%B9%E6%AF%94"><span class="toc-number">1.</span> <span class="toc-text">一、核心概念对比</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B%E4%B8%8E%E5%8D%8F%E4%BD%9C%E5%85%B3%E7%B3%BB"><span class="toc-number">2.</span> <span class="toc-text">二、工作流程与协作关系</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-Attach-%E6%B5%81%E7%A8%8B"><span class="toc-number">2.1.</span> <span class="toc-text">1. Attach 流程</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#1-1-%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E4%B8%8E%E8%81%8C%E8%B4%A3"><span class="toc-number">2.1.1.</span> <span class="toc-text">1.1 核心组件与职责</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#1-2-Attach-%E8%A7%A6%E5%8F%91%E6%9D%A1%E4%BB%B6"><span class="toc-number">2.1.2.</span> <span class="toc-text">1.2 Attach 触发条件</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#1-3-VolumeAttachment-%E8%B5%84%E6%BA%90"><span class="toc-number">2.1.3.</span> <span class="toc-text">1.3 VolumeAttachment 资源</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#1-4-%E8%AF%A6%E7%BB%86%E6%89%A7%E8%A1%8C%E6%B5%81%E7%A8%8B"><span class="toc-number">2.1.4.</span> <span class="toc-text">1.4 详细执行流程</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-Mount-%E6%B5%81%E7%A8%8B"><span class="toc-number">2.2.</span> <span class="toc-text">2. Mount 流程</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#2-1-%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E4%B8%8E%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">2.2.1.</span> <span class="toc-text">2.1 核心组件与数据结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-2-%E7%8A%B6%E6%80%81%E5%90%8C%E6%AD%A5%E6%9C%BA%E5%88%B6"><span class="toc-number">2.2.2.</span> <span class="toc-text">2.2 状态同步机制</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-3-%E5%8D%B8%E8%BD%BD%E6%B5%81%E7%A8%8B"><span class="toc-number">2.2.3.</span> <span class="toc-text">2.3 卸载流程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-4-%E6%8C%82%E8%BD%BD%E6%B5%81%E7%A8%8B"><span class="toc-number">2.2.4.</span> <span class="toc-text">2.4 挂载流程</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-5-%E5%AE%9E%E9%99%85%E6%8C%82%E8%BD%BD%E6%93%8D%E4%BD%9C"><span class="toc-number">2.2.5.</span> <span class="toc-text">2.5 实际挂载操作</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-6-%E5%AE%9E%E9%99%85%E5%8D%B8%E8%BD%BD%E6%93%8D%E4%BD%9C"><span class="toc-number">2.2.6.</span> <span class="toc-text">2.6 实际卸载操作</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-7-%E6%9C%9F%E6%9C%9B%E7%8A%B6%E6%80%81%E6%9B%B4%E6%96%B0%E6%9C%BA%E5%88%B6"><span class="toc-number">2.2.7.</span> <span class="toc-text">2.7 期望状态更新机制</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-8-%E5%85%B3%E9%94%AE%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84"><span class="toc-number">2.2.8.</span> <span class="toc-text">2.8 关键数据结构</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#2-9-Mount-%E6%B5%81%E7%A8%8B%E6%80%BB%E7%BB%93"><span class="toc-number">2.2.9.</span> <span class="toc-text">2.9 Mount 流程总结</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E5%8D%8F%E4%BD%9C%E5%85%B3%E7%B3%BB"><span class="toc-number">2.3.</span> <span class="toc-text">3. 协作关系</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E5%B8%B8%E8%A7%81%E5%AD%98%E5%82%A8%E7%B1%BB%E5%9E%8B%E7%9A%84-Attach-Mount-%E5%B7%AE%E5%BC%82"><span class="toc-number">3.</span> <span class="toc-text">三、常见存储类型的 Attach&#x2F;Mount 差异</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%B0%8F%E7%BB%93"><span class="toc-number">4.</span> <span class="toc-text">四、小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000223/" title="在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用">在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用</a><time datetime="2026-08-07T03:00:00.000Z" title="发表于 2026-08-07 11:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000224/" title="Kubernetes 批处理新范式：Kueue 深度解析与实践">Kubernetes 批处理新范式：Kueue 深度解析与实践</a><time datetime="2026-08-07T02:00:00.000Z" title="发表于 2026-08-07 10:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000222/" title="Kubernetes Prometheus 详解：数据模型、架构与告警">Kubernetes Prometheus 详解：数据模型、架构与告警</a><time datetime="2026-08-07T02:00:00.000Z" title="发表于 2026-08-07 10:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000221/" title="Kubernetes 存储卷的 Attach 与 Mount 详解">Kubernetes 存储卷的 Attach 与 Mount 详解</a><time datetime="2026-08-06T10:30:00.000Z" title="发表于 2026-08-06 18:30:00">2026-08-06</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理">Kubernetes CSI 详解：架构、组件与工作原理</a><time datetime="2026-08-06T10:00:00.000Z" title="发表于 2026-08-06 18:00:00">2026-08-06</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '74d35ccc8928ce47646889c528d3fc65'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
