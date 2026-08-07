@@ -1,0 +1,870 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubernetes List-Watch 机制详解：从 client-go 到 Informer | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="上一篇讲了控制器的三大核心机制（声明式管理、控制循环、事件驱动），其中「事件驱动」能够高效落地，靠的正是底层的 List-Watch 机制。本文自底向上梳理：基于 List-Watch 的控制器架构、List &amp; Watch 的概念与实践，以及在其之上封装的 Informer 机制。 一、基于 List-Watch 机制的控制器架构  1. 架构梳理默认情况下，所有节点的 kubelet、">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubernetes List-Watch 机制详解：从 client-go 到 Informer">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000227/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="上一篇讲了控制器的三大核心机制（声明式管理、控制循环、事件驱动），其中「事件驱动」能够高效落地，靠的正是底层的 List-Watch 机制。本文自底向上梳理：基于 List-Watch 的控制器架构、List &amp; Watch 的概念与实践，以及在其之上封装的 Informer 机制。 一、基于 List-Watch 机制的控制器架构  1. 架构梳理默认情况下，所有节点的 kubelet、">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-07T05:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-07T03:01:55.668Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Informer">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="List-Watch">
+<meta property="article:tag" content="client-go">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubernetes List-Watch 机制详解：从 client-go 到 Informer",
+  "url": "http://zmty365.github.io/posts/1000227/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-07T05:00:00.000Z",
+  "dateModified": "2026-08-07T03:01:55.668Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000227/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubernetes List-Watch 机制详解：从 client-go 到 Informer',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-07T05:00:00.000Z" title="发表于 2026-08-07 13:00:00">2026-08-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">2.6k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>9分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>上一篇讲了控制器的三大核心机制（声明式管理、控制循环、事件驱动），其中「事件驱动」能够高效落地，靠的正是底层的 <strong>List-Watch 机制</strong>。本文自底向上梳理：基于 List-Watch 的控制器架构、List &amp; Watch 的概念与实践，以及在其之上封装的 Informer 机制。</p>
+<h2 id="一、基于-List-Watch-机制的控制器架构"><a href="#一、基于-List-Watch-机制的控制器架构" class="headerlink" title="一、基于 List-Watch 机制的控制器架构"></a>一、基于 List-Watch 机制的控制器架构</h2><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000227/00.png" class="">
+
+<h3 id="1-架构梳理"><a href="#1-架构梳理" class="headerlink" title="1. 架构梳理"></a>1. 架构梳理</h3><p>默认情况下，所有节点的 kubelet、master 节点的 scheduler（调度器）、controller-manager（控制管理器）都采取 list-watch 机制。</p>
+<p>可以总结以下几点：</p>
+<ul>
+<li>kubelet、scheduler、controller 都采取 list-watch 机制。</li>
+<li>这三个组件在启动时都要先 list 一次。</li>
+<li>随后当做出一个动作（例如删除、扩容、缩容）时，都会经过类似的几步：<ul>
+<li>api-server 收到命令，与底层的 etcd 交互，存储信息。</li>
+<li>etcd 处理完后上报 api-server。</li>
+<li>上层的组件（包括用户）不断 watch，了解变化后做出相应的动作，再反馈给 api-server。</li>
+</ul>
+</li>
+</ul>
+<h3 id="2-client-go"><a href="#2-client-go" class="headerlink" title="2. client-go"></a>2. client-go</h3><p>client-go 是 Kubernetes 官方提供的一个用于与 Kubernetes API 服务器进行交互的 Go 语言客户端库。它封装了与 Kubernetes API 服务器通信的底层细节，提供了简洁易用的 API 接口，让开发者可以方便地在 Go 语言程序中实现对 Kubernetes 集群资源（如 Pod、Service、Deployment 等）的创建、读取、更新和删除（CRUD）操作，以及对资源变化的监听等功能。</p>
+<p>client-go 中负责向 api-server 发起 list-watch 的核心组件是 reflector。</p>
+<p>其具有以下优势：</p>
+<ul>
+<li><strong>简化开发</strong>：通过提供高层次的抽象和封装，开发者无需关心与 API 服务器通信的具体 HTTP 请求和响应细节，降低了开发与 Kubernetes 交互程序的难度。</li>
+<li><strong>支持多种操作</strong>：支持对 Kubernetes 各种资源对象的操作，包括但不限于创建、查询、修改和删除，同时还支持对资源的事件监听（如 List-Watch 机制）。</li>
+<li><strong>多版本兼容性</strong>：能够处理不同版本的 Kubernetes API，保证在不同版本的 Kubernetes 集群中都能正常工作。</li>
+</ul>
+<p>client-go 并不属于 kubelet、scheduler 或 controller，但它们都会使用 client-go 库来与 Kubernetes API 服务器进行通信。</p>
+<h2 id="二、List-Watch"><a href="#二、List-Watch" class="headerlink" title="二、List &amp; Watch"></a>二、List &amp; Watch</h2><h3 id="1-基础概念"><a href="#1-基础概念" class="headerlink" title="1. 基础概念"></a>1. 基础概念</h3><ul>
+<li><strong>List</strong>：对应 Kubernetes API 的 <code>list</code> 操作，一次性获取某类资源的<strong>全量</strong>列表（例如获取某个 namespace 下的所有 Pod）。它是「拉取快照」，返回后连接即结束。</li>
+<li><strong>Watch</strong>：对应 Kubernetes API 的 <code>watch</code> 操作，与 API Server 建立一个<strong>长连接</strong>，持续接收资源的<strong>增量</strong>变化事件（新增、修改、删除），从而实时感知集群状态变化。</li>
+</ul>
+<p>两者配合使用：先用 List 拿到全量数据作为初始状态（并记录当时的 <code>resourceVersion</code>），再从这个版本开始 Watch 增量事件，既保证了初始数据的完整性，又保证了后续变化的实时性。</p>
+<p>Watch 返回的事件类型主要有：</p>
+<ul>
+<li><code>ADDED</code>：资源被新增。</li>
+<li><code>MODIFIED</code>：资源被修改。</li>
+<li><code>DELETED</code>：资源被删除。</li>
+<li><code>BOOKMARK</code>：书签事件，用于告知客户端当前最新的 <code>resourceVersion</code>，便于断线重连。</li>
+<li><code>ERROR</code>：出现错误。</li>
+</ul>
+<h3 id="2-为什么重要"><a href="#2-为什么重要" class="headerlink" title="2. 为什么重要"></a>2. 为什么重要</h3><ul>
+<li><strong>实时性</strong>：相比轮询（不断重复 List），Watch 通过长连接推送变化，能第一时间感知集群状态，延迟更低。</li>
+<li><strong>低开销</strong>：List 只在初始化时拉一次全量，后续只传输增量事件，大幅降低 API Server 与网络的压力。</li>
+<li><strong>一致性基础</strong>：借助 <code>resourceVersion</code>，客户端可以在断线后从上次的位置续接，避免漏掉事件或重复处理。</li>
+</ul>
+<h3 id="3-实践"><a href="#3-实践" class="headerlink" title="3. 实践"></a>3. 实践</h3><p>下面用 client-go 演示 List、Watch 以及两者结合的用法。</p>
+<p><strong>（1）List：一次性获取全量 Pod</strong></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">pods, err := clientset.CoreV1().Pods(<span class="string">&quot;default&quot;</span>).List(context.TODO(), metav1.ListOptions&#123;&#125;)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="built_in">panic</span>(err)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">for</span> _, pod := <span class="keyword">range</span> pods.Items &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;Pod: %s\n&quot;</span>, pod.Name)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>（2）Watch：持续监听 Pod 变化</strong></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">watcher, err := clientset.CoreV1().Pods(<span class="string">&quot;default&quot;</span>).Watch(context.TODO(), metav1.ListOptions&#123;&#125;)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="built_in">panic</span>(err)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">for</span> event := <span class="keyword">range</span> watcher.ResultChan() &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;事件类型: %v, 对象: %v\n&quot;</span>, event.Type, event.Object)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><strong>（3）List &amp; Watch 结合：先全量再增量</strong></p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 先 List 拿到全量，并记录 resourceVersion</span></span><br><span class="line">pods, err := clientset.CoreV1().Pods(<span class="string">&quot;default&quot;</span>).List(context.TODO(), metav1.ListOptions&#123;&#125;)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="built_in">panic</span>(err)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">for</span> _, pod := <span class="keyword">range</span> pods.Items &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;初始 Pod: %s\n&quot;</span>, pod.Name)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 从记录的 resourceVersion 开始 Watch 增量事件</span></span><br><span class="line">watcher, err := clientset.CoreV1().Pods(<span class="string">&quot;default&quot;</span>).Watch(context.TODO(), metav1.ListOptions&#123;</span><br><span class="line">    ResourceVersion: pods.ResourceVersion,</span><br><span class="line">&#125;)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="built_in">panic</span>(err)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">for</span> event := <span class="keyword">range</span> watcher.ResultChan() &#123;</span><br><span class="line">    fmt.Printf(<span class="string">&quot;增量事件: %v, 对象: %v\n&quot;</span>, event.Type, event.Object)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<blockquote>
+<p>注意：<code>fmt.Printf</code> 才能正确解析 <code>%v</code> 等格式化占位符；若误用 <code>fmt.Println</code>，占位符会被原样输出。</p>
+</blockquote>
+<h2 id="三、Informer-机制"><a href="#三、Informer-机制" class="headerlink" title="三、Informer 机制"></a>三、Informer 机制</h2><p>直接使用 List-Watch 虽然可行，但存在一些痛点：每个组件都自己维护一份数据、频繁访问 API Server、断线重连和缓存一致性都要自己处理。为此，client-go 在 List-Watch 之上封装了 <strong>Informer</strong> 机制。</p>
+<p>Informer 可以理解为 List-Watch 的「加强版」，它在内部完成了以下工作：</p>
+<ul>
+<li><strong>本地缓存（Local Store &#x2F; Indexer）</strong>：Informer 通过 List-Watch 把资源数据同步到本地内存缓存中，之后的读取（如 Get、List）直接命中本地缓存，无需每次都请求 API Server。</li>
+<li><strong>事件驱动回调</strong>：通过 <code>ResourceEventHandler</code> 注册 <code>AddFunc</code>、<code>UpdateFunc</code>、<code>DeleteFunc</code> 回调，当资源发生变化时自动触发对应处理逻辑，天然契合控制器的「事件驱动」模式。</li>
+<li><strong>减少 API Server 压力</strong>：多个控制器可以共享同一个 SharedInformer，只维护一份 List-Watch 连接和一份缓存，避免重复拉取。</li>
+<li><strong>自动重连与重新同步</strong>：底层的 reflector 负责发起 List-Watch，断线后会自动重连；Informer 还支持周期性的 Resync，保证本地缓存与实际状态最终一致。</li>
+</ul>
+<p>它们之间的关系可以概括为：reflector 负责发起 List-Watch 拉取数据，Informer 在其上封装出本地缓存与事件回调，供上层控制器使用。</p>
+<pre><code class="highlight mermaid">graph TB
+    A[API Server] --&gt;|List 全量 + Watch 增量| B[Reflector]
+    B --&gt; C[本地缓存 Store/Indexer]
+    B --&gt; D[事件分发]
+    D --&gt; E[AddFunc]
+    D --&gt; F[UpdateFunc]
+    D --&gt; G[DeleteFunc]
+    C --&gt; H[控制器读取缓存]</code></pre>
+
+<h3 id="（一）Informer-内部核心组件与数据流"><a href="#（一）Informer-内部核心组件与数据流" class="headerlink" title="（一）Informer 内部核心组件与数据流"></a>（一）Informer 内部核心组件与数据流</h3><p>上面的图是 Informer 的简化视角。实际上 client-go 的 Informer 内部由几个协作的组件构成，数据在它们之间单向流转：</p>
+<ul>
+<li><strong>Reflector</strong>：真正对 API Server 发起 List-Watch 的组件。它先 List 拿到全量对象，再 Watch 持续接收增量事件，并把这些变化包装成「Delta（变化增量）」放入 DeltaFIFO。</li>
+<li><strong>DeltaFIFO</strong>：一个先进先出的队列，按对象 key 聚合它的变化历史（Added &#x2F; Updated &#x2F; Deleted &#x2F; Sync 等）。它是「数据入口」到「本地缓存」之间的缓冲区，保证事件按顺序被消费。</li>
+<li><strong>Indexer（本地缓存）</strong>：一个带索引的本地内存存储（底层是线程安全的 ThreadSafeStore）。Informer 消费 DeltaFIFO 时，会用最新对象更新 Indexer，因此控制器读取 Get&#x2F;List 时直接命中它，无需访问 API Server。Indexer 还支持按标签、命名空间等自定义索引快速检索。</li>
+<li><strong>sharedProcessor &#x2F; Listener</strong>：Informer 消费 DeltaFIFO 时，除了更新 Indexer，还会把事件分发给所有注册的监听器，最终触发用户注册的 <code>AddFunc</code>、<code>UpdateFunc</code>、<code>DeleteFunc</code>。</li>
+<li><strong>WorkQueue（工作队列）</strong>：回调函数通常不直接处理业务逻辑，而是把变化对象的 key 放入一个限速工作队列，再由控制器的 worker 协程从队列中取出、执行真正的调谐（Reconcile）。这样做的好处是：解耦事件接收与业务处理、支持去重与失败重试、削峰限速。</li>
+</ul>
+<p>它们串起来的完整链路如下：</p>
+<pre><code class="highlight mermaid">graph TB
+    A[API Server] --&gt;|List 全量 + Watch 增量| B[Reflector]
+    B --&gt;|封装成 Delta 入队| C[DeltaFIFO 队列]
+    C --&gt;|消费| D[Informer 主循环]
+    D --&gt;|更新对象| E[Indexer 本地缓存]
+    D --&gt;|分发事件| F[sharedProcessor 监听器]
+    F --&gt; G[AddFunc/UpdateFunc/DeleteFunc]
+    G --&gt;|放入对象 key| H[WorkQueue 限速队列]
+    H --&gt; I[控制器 Worker 调谐 Reconcile]
+    I --&gt;|读取缓存| E</code></pre>
+
+<h3 id="（二）SharedInformer-与-SharedInformerFactory"><a href="#（二）SharedInformer-与-SharedInformerFactory" class="headerlink" title="（二）SharedInformer 与 SharedInformerFactory"></a>（二）SharedInformer 与 SharedInformerFactory</h3><p>如果每个控制器都各自创建一个 Informer，就意味着对同一种资源（比如 Pod）维护了多份 List-Watch 连接和多份缓存，既浪费内存又给 API Server 带来重复压力。</p>
+<p><strong>SharedInformer</strong> 解决的正是这个问题：对同一种资源，只维护一份 Reflector、一份 DeltaFIFO、一份 Indexer 缓存，而允许多个使用者各自注册回调，共享底层的这一套数据。</p>
+<p>在实际开发中，一般不直接创建单个 SharedInformer，而是通过 <strong>SharedInformerFactory</strong> 统一管理。它按资源类型缓存并复用 Informer，同一种资源多次获取拿到的是同一个实例。典型用法是：从 Factory 拿到各资源的 Informer 并注册回调，最后统一 <code>Start</code> 启动、<code>WaitForCacheSync</code> 等待首次全量同步完成后再开始工作，避免缓存尚未就绪就处理业务。</p>
+<h3 id="（三）关于-Resync-的准确理解"><a href="#（三）关于-Resync-的准确理解" class="headerlink" title="（三）关于 Resync 的准确理解"></a>（三）关于 Resync 的准确理解</h3><p>Resync 是一个容易被误解的概念。它<strong>并不是</strong>重新去 API Server 拉取数据，而是把 Informer <strong>本地缓存（Indexer）中已有的对象重新投递一遍</strong>，触发一次 <code>UpdateFunc</code>（此时新旧对象相同）。</p>
+<p>它的意义在于：给控制器一个「定期兜底」的机会，重新对齐期望状态与实际状态，防止某次事件处理失败或遗漏后系统一直处于不一致状态。真正从 API Server 重新拉取全量是 Reflector 在 Watch 连接断开或过期时做的 <strong>re-List</strong>，二者不是一回事。</p>
+<h2 id="四、小结"><a href="#四、小结" class="headerlink" title="四、小结"></a>四、小结</h2><ul>
+<li><strong>List-Watch 是 Kubernetes 各组件（kubelet、scheduler、controller-manager）感知集群状态的基础机制</strong>：先 List 拿全量，再 Watch 收增量。</li>
+<li><strong>client-go</strong> 封装了与 API Server 通信的细节，其中 <strong>reflector</strong> 是发起 List-Watch 的核心组件。</li>
+<li><strong>List</strong> 是一次性全量快照，<strong>Watch</strong> 是长连接增量事件流，二者配合借助 <code>resourceVersion</code> 实现实时且一致的状态同步。</li>
+<li><strong>Informer</strong> 在 List-Watch 之上封装了本地缓存与事件回调，减少 API Server 压力，是控制器「事件驱动」高效落地的关键。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000227/">http://zmty365.github.io/posts/1000227/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/List-Watch/">List-Watch</a><a class="post-meta__tags" href="/tags/Informer/">Informer</a><a class="post-meta__tags" href="/tags/client-go/">client-go</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000226/" title="Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中的控制器（Controller）是确保集群状态与用户期望状态一致的核心组件。控制器通过三种主要机制来实现这一目标：声明式管理、控制循环（Control Loop） 和 事件驱动。下面我们将详细讲解这三种机制的工作原理和实现细节。 一、声明式管理原理声明式管理是 Kubernetes 的核心设计理念之一。用户通过编写 YAML 或 JSON 文件来描述资源的期望状态（Desired State），而不是直接告诉 Kubernetes 如何操作。Kubernetes 控制器会根据这些声明自动调整集群的实际状态（Current State），使其与期望状态一致。 详细过程 用户提交声明：用户通过 kubectl apply 或 kubectl create 等命令提交一个 YAML 文件，描述资源的期望状态。 API Server 接收声明：Kubernetes API Server 接收到用户的声明后，将其存储在 etcd 中。 控制器监听资源变化：控制器通过 API Server 监听资源的变化，获取资源的期望状态。 控制器调整实际状态：控制器根据期望状态调...</div></div></div></a><a class="pagination-related" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">k8s 之 Kubebuilder 最佳实践</div></div><div class="info-2"><div class="info-item-1">在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据。 一、OwnerReferenceKubernetes 中的对象可以通过 metadata.ownerReferences 字段声明自己的「所有者」（Owner）。这种父子关系带来两个重要能力：  级联删除（Garbage Collection）：删除父对象时，Kubernetes 会自动删除其所有子对象，无需在控制器里手动清理。 触发调谐（Reconcile）：当子对象发生变更时，可以让父对象所属的控制器重新触发一次 Reconcile。  1.1 设置 OwnerReference在控制器创建子资源时，通过 controllerutil.SetControllerReference...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">k8s 之 Kubebuilder 最佳实践</div></div><div class="info-2"><div class="info-item-1">在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据。 一、OwnerReferenceKubernetes 中的对象可以通过 metadata.ownerReferences 字段声明自己的「所有者」（Owner）。这种父子关系带来两个重要能力：  级联删除（Garbage Collection）：删除父对象时，Kubernetes 会自动删除其所有子对象，无需在控制器里手动清理。 触发调谐（Reconcile）：当子对象发生变更时，可以让父对象所属的控制器重新触发一次 Reconcile。  1.1 设置 OwnerReference在控制器创建子资源时，通过 controllerutil.SetControllerReference...</div></div></div></a><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a><a class="pagination-related" href="/posts/1000208/" title="Kubernetes StatefulSet 与 Headless Service"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes StatefulSet 与 Headless Service</div></div><div class="info-2"><div class="info-item-1">Kubernetes StatefulSet 与 Headless Service无状态应用可以随意扩缩、随意重建，谁顶上都一样；但数据库、消息队列这类有状态应用不行——每个实例都有自己的身份和数据，重建后必须”还是原来那个”。Kubernetes 用 StatefulSet + Headless Service 这对组合来解决这个问题。本文先讲清 Headless Service，再讲它如何与 StatefulSet 协同。 一、Headless Service 介绍Headless Service（无头服务）是 Kubernetes 中的一种特殊 Service 类型，它不会为 Service 分配集群 IP（ClusterIP），也不做负载均衡或请求代理。 主要特点 无集群 IP：与常规 Service 不同，Headless Service 没有 ClusterIP 地址。 直接 DNS 解析：DNS 查询会返回所有匹配 Pod 的 IP 地址列表，而不是单个 Service IP。 每个 Pod 有独立 DNS 记录：每个 Pod 会获得一个唯一的、可解析的 DNS 名...</div></div></div></a><a class="pagination-related" href="/posts/1000218/" title="Kubernetes 容器运行时详解：从原理、CRI 到运行时选型"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes 容器运行时详解：从原理、CRI 到运行时选型</div></div><div class="info-2"><div class="info-item-1">一、什么是容器运行时容器运行时（Container Runtime）提供容器的运行环境，是负责运行容器的软件。通俗地讲，它管理容器从拉取镜像、创建、启动、运行、销毁的完整生命周期。 以 Docker 为例，作为一个整体的容器运行时实现，主要提供：  制定容器镜像格式 构建容器镜像 运行容器  二、容器运行时的分类1. 高层运行时与低层运行时目前较流行的说法按功能实现把容器运行时分为两类：  低层运行时（low-level）：通常只关注 Namespace、Cgroups、镜像拆包等基础的容器运行实现（如 runc）。 高层运行时（high-level）：支持更多高级功能（如镜像管理、CRI 实现）的运行时（如 containerd、CRI-O）。  2. 按隔离技术分类（1）基于 hypervisor 的运行时  代表技术：KVM、Kata Containers 等。 原理：利用 hypervisor 在物理主机上创建多个虚拟机，每个虚拟机有独立的操作系统和资源隔离环境，容器运行在虚拟机内部，实现更强隔离。 优点：硬件级强隔离，安全性高，一个容器的故障或攻击很难影响其他容器或主机...</div></div></div></a><a class="pagination-related" href="/posts/1000211/" title="Kubernetes Endpoint 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Endpoint 详解</div></div><div class="info-2"><div class="info-item-1">一、Endpoint 的基本概念（一）Endpoint 的定义Endpoint 是 Kubernetes 中的一种资源，用于描述 Service 的实际访问点。它包含了提供服务的 Pod 的 IP 地址和端口信息。这些信息是 Kubernetes 实现服务发现和流量分发的关键依据，通过记录具体 Pod 的网络信息，让请求能够准确找到提供服务的实例。 （二）Endpoint 的作用Endpoint 的主要作用是将 Service 与后端 Pod 关联起来。当一个 Service 被创建时，Kubernetes 会自动创建对应的 Endpoint，将 Service 的流量分发到后端 Pod。它就像是一座桥梁，连接了抽象的服务访问入口（Service）和实际提供服务的工作负载（Pod），确保服务请求能够被正确地路由到可用的 Pod 实例上，实现了服务的高可用性和负载均衡。 二、Endpoint 的创建与管理（一）自动创建在 Kubernetes 中，Endpoint 通常是自动创建的。当创建一个 Service 时，Kubernetes 会根据 Service 的选择器（Select...</div></div></div></a><a class="pagination-related" href="/posts/1000212/" title="Kubernetes Deployment 详解：从基础概念到更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes Deployment 详解：从基础概念到更新策略</div></div><div class="info-2"><div class="info-item-1">一、Deployment 与 PodTemplate、容器的关系在深入更新策略之前，先理清 Deployment 到底是什么，以及它和 Pod、容器之间的关系。这三者在 Kubernetes 中是层层嵌套的，可以用「套娃」模型来理解。 1. 核心关系图示12345Deployment (管理应用部署)│└── PodTemplate (定义 Pod 的模板)    │    └── 容器 (实际运行的应用)  2. 三者的角色解析Deployment（部署控制器）：  作用：声明应用的期望状态（要运行多少副本、用什么镜像等）。 关键能力：滚动更新、回滚、扩缩容。 包含：一个 PodTemplate + 副本数等配置。  PodTemplate（Pod 模板）：  位置：在 Deployment 的 spec.template 字段中。 作用：定义要创建的 Pod 的「模具」。 包含：容器定义（1 个或多个）、存储卷配置、网络设置、节点选择规则等。  容器（Container）：  位置：在 PodTemplate 的 spec.containers 数组中。 作用：实际运行应用程...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E5%9F%BA%E4%BA%8E-List-Watch-%E6%9C%BA%E5%88%B6%E7%9A%84%E6%8E%A7%E5%88%B6%E5%99%A8%E6%9E%B6%E6%9E%84"><span class="toc-number">1.</span> <span class="toc-text">一、基于 List-Watch 机制的控制器架构</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E6%9E%B6%E6%9E%84%E6%A2%B3%E7%90%86"><span class="toc-number">1.1.</span> <span class="toc-text">1. 架构梳理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-client-go"><span class="toc-number">1.2.</span> <span class="toc-text">2. client-go</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81List-Watch"><span class="toc-number">2.</span> <span class="toc-text">二、List &amp; Watch</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E5%9F%BA%E7%A1%80%E6%A6%82%E5%BF%B5"><span class="toc-number">2.1.</span> <span class="toc-text">1. 基础概念</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E4%B8%BA%E4%BB%80%E4%B9%88%E9%87%8D%E8%A6%81"><span class="toc-number">2.2.</span> <span class="toc-text">2. 为什么重要</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E5%AE%9E%E8%B7%B5"><span class="toc-number">2.3.</span> <span class="toc-text">3. 实践</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81Informer-%E6%9C%BA%E5%88%B6"><span class="toc-number">3.</span> <span class="toc-text">三、Informer 机制</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89Informer-%E5%86%85%E9%83%A8%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%B5%81"><span class="toc-number">3.1.</span> <span class="toc-text">（一）Informer 内部核心组件与数据流</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89SharedInformer-%E4%B8%8E-SharedInformerFactory"><span class="toc-number">3.2.</span> <span class="toc-text">（二）SharedInformer 与 SharedInformerFactory</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%89%EF%BC%89%E5%85%B3%E4%BA%8E-Resync-%E7%9A%84%E5%87%86%E7%A1%AE%E7%90%86%E8%A7%A3"><span class="toc-number">3.3.</span> <span class="toc-text">（三）关于 Resync 的准确理解</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%B0%8F%E7%BB%93"><span class="toc-number">4.</span> <span class="toc-text">四、小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000232/" title="Kubernetes Volume Snapshots 详解">Kubernetes Volume Snapshots 详解</a><time datetime="2026-08-07T08:00:00.000Z" title="发表于 2026-08-07 16:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000231/" title="k8s 之 fieldsV1 简单介绍">k8s 之 fieldsV1 简单介绍</a><time datetime="2026-08-07T07:00:00.000Z" title="发表于 2026-08-07 15:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践">k8s 之 Kubebuilder 最佳实践</a><time datetime="2026-08-07T06:00:00.000Z" title="发表于 2026-08-07 14:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000227/" title="Kubernetes List-Watch 机制详解：从 client-go 到 Informer">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</a><time datetime="2026-08-07T05:00:00.000Z" title="发表于 2026-08-07 13:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000226/" title="Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动">Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动</a><time datetime="2026-08-07T04:00:00.000Z" title="发表于 2026-08-07 12:00:00">2026-08-07</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || 'e8a1e6d81f76f18b77699abe471b229c'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

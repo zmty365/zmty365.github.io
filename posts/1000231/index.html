@@ -1,0 +1,804 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>k8s 之 fieldsV1 简单介绍 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="用 client-go 或 controller-runtime 的 Client 查询一个 Deployment，把结果打印成 YAML，常常会发现里面多了一大坨 managedFields，而同样的对象用 kubectl get -o yaml 却看不到。这块内容里的 fieldsV1 到底是什么？为什么两边不一致？本文做一个简单的梳理。 一、为什么会出现 fieldsV11.1 Server">
+<meta property="og:type" content="article">
+<meta property="og:title" content="k8s 之 fieldsV1 简单介绍">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000231/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="用 client-go 或 controller-runtime 的 Client 查询一个 Deployment，把结果打印成 YAML，常常会发现里面多了一大坨 managedFields，而同样的对象用 kubectl get -o yaml 却看不到。这块内容里的 fieldsV1 到底是什么？为什么两边不一致？本文做一个简单的梳理。 一、为什么会出现 fieldsV11.1 Server">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-07T07:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-07T03:45:35.748Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="SSA">
+<meta property="article:tag" content="managedFields">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "k8s 之 fieldsV1 简单介绍",
+  "url": "http://zmty365.github.io/posts/1000231/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-07T07:00:00.000Z",
+  "dateModified": "2026-08-07T03:45:35.748Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000231/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'k8s 之 fieldsV1 简单介绍',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">k8s 之 fieldsV1 简单介绍</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">k8s 之 fieldsV1 简单介绍</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-07T07:00:00.000Z" title="发表于 2026-08-07 15:00:00">2026-08-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">1.1k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>4分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>用 <code>client-go</code> 或 controller-runtime 的 Client 查询一个 Deployment，把结果打印成 YAML，常常会发现里面多了一大坨 <code>managedFields</code>，而同样的对象用 <code>kubectl get -o yaml</code> 却看不到。这块内容里的 <code>fieldsV1</code> 到底是什么？为什么两边不一致？本文做一个简单的梳理。</p>
+<h2 id="一、为什么会出现-fieldsV1"><a href="#一、为什么会出现-fieldsV1" class="headerlink" title="一、为什么会出现 fieldsV1"></a>一、为什么会出现 fieldsV1</h2><h3 id="1-1-Server-Side-Apply（SSA）"><a href="#1-1-Server-Side-Apply（SSA）" class="headerlink" title="1.1 Server-Side Apply（SSA）"></a>1.1 Server-Side Apply（SSA）</h3><p>在 Kubernetes 1.18 之前，<code>kubectl apply</code> 采用的是 Client-Side Apply：客户端在本地计算差异（依赖 <code>last-applied-configuration</code> 注解），再把结果发给 API Server。这种方式有个问题——多个客户端（或控制器）同时修改同一个对象时，无法准确判断「某个字段到底是谁在管」，容易互相覆盖。</p>
+<p>Kubernetes 1.18 正式引入了 <strong>Server-Side Apply（SSA）</strong> 机制，把「字段所有权」的计算搬到了服务端。API Server 会记录每个字段是被哪个「管理者」（manager）修改的，从而在多方写同一对象时精确地检测和处理冲突。</p>
+<h3 id="1-2-managedFields"><a href="#1-2-managedFields" class="headerlink" title="1.2 managedFields"></a>1.2 managedFields</h3><p>为了实现 SSA，每个资源对象的 <code>metadata</code> 里都多了一个 <code>managedFields</code> 字段，记录了每个字段的管理者信息——例如哪个客户端、用哪种操作（Apply &#x2F; Update）、在什么时间修改了哪些字段。</p>
+<h3 id="1-3-fieldsV1"><a href="#1-3-fieldsV1" class="headerlink" title="1.3 fieldsV1"></a>1.3 fieldsV1</h3><p><code>fieldsV1</code> 就是 <code>managedFields</code> 里描述「具体哪些字段被这个 manager 管理」的部分，它用一种树状结构精确地标记出被管理的字段路径。</p>
+<h2 id="二、fieldsV1-的结构"><a href="#二、fieldsV1-的结构" class="headerlink" title="二、fieldsV1 的结构"></a>二、fieldsV1 的结构</h2><p><code>fieldsV1</code> 是一个嵌套结构，逐层描述资源对象中被管理的字段。例如：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">fieldsV1:</span></span><br><span class="line">  <span class="attr">f:metadata:</span></span><br><span class="line">    <span class="attr">f:annotations:</span></span><br><span class="line">      <span class="string">.:</span> &#123;&#125;</span><br><span class="line">      <span class="attr">f:deployment.kubernetes.io/revision:</span> &#123;&#125;</span><br><span class="line">  <span class="attr">f:status:</span></span><br><span class="line">    <span class="attr">f:conditions:</span></span><br><span class="line">      <span class="string">.:</span> &#123;&#125;</span><br><span class="line">      <span class="string">k:&#123;&quot;type&quot;:&quot;Available&quot;&#125;:</span></span><br><span class="line">        <span class="string">.:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:lastTransitionTime:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:lastUpdateTime:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:message:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:reason:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:status:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:type:</span> &#123;&#125;</span><br><span class="line">      <span class="string">k:&#123;&quot;type&quot;:&quot;Progressing&quot;&#125;:</span></span><br><span class="line">        <span class="string">.:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:lastTransitionTime:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:lastUpdateTime:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:message:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:reason:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:status:</span> &#123;&#125;</span><br><span class="line">        <span class="attr">f:type:</span> &#123;&#125;</span><br><span class="line">    <span class="attr">f:observedGeneration:</span> &#123;&#125;</span><br></pre></td></tr></table></figure>
+
+<p>其中几个前缀的含义：</p>
+<ul>
+<li><code>f:</code> 表示字段（field），后面跟字段名，如 <code>f:metadata</code>、<code>f:status</code>。</li>
+<li><code>k:</code> 表示键（key），用于定位 list 中的某个元素（通过它的关键字段值），如 <code>k:{&quot;type&quot;:&quot;Available&quot;}</code> 表示 conditions 列表里 type 为 Available 的那一项。</li>
+<li><code>.: {}</code> 表示该层级节点自身的所有权标记。</li>
+</ul>
+<h2 id="三、为什么查到的-YAML-和-kubectl-看到的不一样"><a href="#三、为什么查到的-YAML-和-kubectl-看到的不一样" class="headerlink" title="三、为什么查到的 YAML 和 kubectl 看到的不一样"></a>三、为什么查到的 YAML 和 kubectl 看到的不一样</h2><p>同一个对象，通过不同途径查询，<code>managedFields</code> 的可见性不同：</p>
+<pre><code class="highlight mermaid">graph TB
+    A[资源对象] --&gt; B[kubectl get -o yaml]
+    A --&gt; C[client-go / controller-runtime Client]
+    B --&gt; D[默认隐藏 managedFields]
+    C --&gt; E[默认包含 managedFields]</code></pre>
+
+<h3 id="3-1-默认行为"><a href="#3-1-默认行为" class="headerlink" title="3.1 默认行为"></a>3.1 默认行为</h3><p><code>managedFields</code> 属于内部元数据，对日常查看资源的用户通常没有用，所以 <code>kubectl get</code>、<code>kubectl describe</code> 默认会把它隐藏起来。</p>
+<h3 id="3-2-显式查询"><a href="#3-2-显式查询" class="headerlink" title="3.2 显式查询"></a>3.2 显式查询</h3><p>如果你通过 <code>client-go</code> 或其他 SDK 直接查询资源对象，API Server 返回的完整对象里是<strong>包含</strong> <code>managedFields</code> 的，SDK 不会替你隐藏。</p>
+<h3 id="3-3-YAML-序列化"><a href="#3-3-YAML-序列化" class="headerlink" title="3.3 YAML 序列化"></a>3.3 YAML 序列化</h3><p>当你把这个完整对象序列化成 YAML 时，<code>managedFields</code>（以及里面的 <code>fieldsV1</code>）自然也会被一起打印出来。这就是「代码里查出来的 YAML 比 kubectl 多一大坨」的原因。</p>
+<h2 id="四、如何隐藏-managedFields"><a href="#四、如何隐藏-managedFields" class="headerlink" title="四、如何隐藏 managedFields"></a>四、如何隐藏 managedFields</h2><p>如果不希望 <code>managedFields</code> 出现在输出里，可以在查询后、序列化前把它清掉。</p>
+<h3 id="方法-1：查询后置空-managedFields"><a href="#方法-1：查询后置空-managedFields" class="headerlink" title="方法 1：查询后置空 managedFields"></a>方法 1：查询后置空 managedFields</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">obj.SetManagedFields(<span class="literal">nil</span>) <span class="comment">// 移除 managedFields</span></span><br><span class="line">yaml, err := yamlutil.Marshal(obj)</span><br></pre></td></tr></table></figure>
+
+<h3 id="方法-2：序列化时用自定义结构过滤"><a href="#方法-2：序列化时用自定义结构过滤" class="headerlink" title="方法 2：序列化时用自定义结构过滤"></a>方法 2：序列化时用自定义结构过滤</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> DeploymentWithoutManagedFields <span class="keyword">struct</span> &#123;</span><br><span class="line">    appv1.Deployment <span class="string">`json:&quot;,inline&quot;`</span></span><br><span class="line">    ManagedFields []metav1.ManagedFieldsEntry <span class="string">`json:&quot;managedFields,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">objWithoutFields := &amp;DeploymentWithoutManagedFields&#123;</span><br><span class="line">    Deployment: *obj,</span><br><span class="line">&#125;</span><br><span class="line">yaml, err := yamlutil.Marshal(objWithoutFields)</span><br></pre></td></tr></table></figure>
+
+<h3 id="方法-3：kubectl-显式控制"><a href="#方法-3：kubectl-显式控制" class="headerlink" title="方法 3：kubectl 显式控制"></a>方法 3：kubectl 显式控制</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubectl get deployment &lt;deployment-name&gt; -n &lt;namespace&gt; -o yaml --show-managed-fields=<span class="literal">false</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="五、完整示例"><a href="#五、完整示例" class="headerlink" title="五、完整示例"></a>五、完整示例</h2><p>下面是一个完整示例，查询 Deployment 后移除 <code>managedFields</code> 再打印 YAML：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 查询 Deployment</span></span><br><span class="line">obj := &amp;appv1.Deployment&#123;&#125;</span><br><span class="line">err = client.Get(ctx, ctrlclient.ObjectKey&#123;Namespace: task.Namespace, Name: task.TaskName&#125;, obj)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    log.Fatalf(<span class="string">&quot;Failed to get Deployment: %v&quot;</span>, err)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 移除 managedFields</span></span><br><span class="line">obj.SetManagedFields(<span class="literal">nil</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment">// 将 Deployment 转换为 YAML</span></span><br><span class="line">yaml, err := yamlutil.Marshal(obj)</span><br><span class="line"><span class="keyword">if</span> err != <span class="literal">nil</span> &#123;</span><br><span class="line">    log.Fatalf(<span class="string">&quot;Failed to marshal Deployment to YAML: %v&quot;</span>, err)</span><br><span class="line">&#125;</span><br><span class="line">fmt.Println(<span class="type">string</span>(yaml))</span><br></pre></td></tr></table></figure>
+
+<h2 id="六、小结"><a href="#六、小结" class="headerlink" title="六、小结"></a>六、小结</h2><ul>
+<li><code>fieldsV1</code> 是 <code>managedFields</code> 的一部分，用树状结构记录字段的所有权信息，它是 Server-Side Apply 机制的基础数据。</li>
+<li><code>kubectl</code> 默认隐藏 <code>managedFields</code>，而通过 <code>client-go</code> 直接查询时会包含它——这就是两边 YAML 不一致的原因。</li>
+<li>如果需要生成与 <code>kubectl</code> 一致的干净 YAML，可以在序列化前通过 <code>SetManagedFields(nil)</code> 移除它。</li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000231/">http://zmty365.github.io/posts/1000231/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/SSA/">SSA</a><a class="post-meta__tags" href="/tags/managedFields/">managedFields</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">k8s 之 Kubebuilder 最佳实践</div></div><div class="info-2"><div class="info-item-1">在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据。 一、OwnerReferenceKubernetes 中的对象可以通过 metadata.ownerReferences 字段声明自己的「所有者」（Owner）。这种父子关系带来两个重要能力：  级联删除（Garbage Collection）：删除父对象时，Kubernetes 会自动删除其所有子对象，无需在控制器里手动清理。 触发调谐（Reconcile）：当子对象发生变更时，可以让父对象所属的控制器重新触发一次 Reconcile。  1.1 设置 OwnerReference在控制器创建子资源时，通过 controllerutil.SetControllerReference...</div></div></div></a><a class="pagination-related" href="/posts/1000232/" title="Kubernetes Volume Snapshots 详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">Kubernetes Volume Snapshots 详解</div></div><div class="info-2"><div class="info-item-1">在 Kubernetes 中，Volume Snapshots（卷快照） 用于为持久卷（PV）创建时间点副本，是备份恢复、数据克隆等场景的基础能力。这一特性通过 CSI（容器存储接口） 实现，并引入了一组新的 API 资源来管理快照的生命周期。本文梳理卷快照的核心概念、工作原理与使用方法。 一、核心概念与 API 资源1.1 三个核心资源的关系卷快照由三个 CRD 协作完成，它们的关系与 PVC &#x2F; PV 高度相似： graph LR     A[VolumeSnapshotClass] --&gt;|定义后端配置| B[VolumeSnapshot]     B --&gt;|绑定| C[VolumeSnapshotContent]     C --&gt;|指向| D[存储后端实际快照]   VolumeSnapshotClass 类比 StorageClass——定义用哪个后端、什么删除策略。 VolumeSnapshot 类比 PVC——用户发起的「我要一份快照」的请求（命名空间级）。 VolumeSnapshotContent 类比 PV——系统创建的、代表后...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000201/" title="Kubernetes 中的 API 对象"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中的 API 对象</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中的 API 对象一、API 对象API 对象是 Kubernetes 集群中的管理操作单元。Kubernetes 集群系统每支持一项新功能、引入一项新技术，一定会引入对应的 API 对象来支持对该功能的管理操作。 每个 API 对象都有三大类属性：元数据 metadata、规范 spec 和状态 status。  元数据（metadata）：用来标识 API 对象。每个对象都至少有 3 个元数据：namespace、name 和 uid；除此以外还有各种各样的标签 labels，用来标识和匹配不同的对象。例如用户可以用标签 env 来区分不同的服务部署环境，分别用 env=dev、env=testing、env=production 来标识开发、测试、生产环境。 规范（spec）：描述用户期望 Kubernetes 集群中的分布式系统达到的理想状态。例如用户可以通过 Replication Controller 设置期望的 Pod 副本数为 3。 状态（status）：描述系统实际当前达到的状态。例如系统当前实际的 Pod 副本数为 2，那么 Replic...</div></div></div></a><a class="pagination-related" href="/posts/1000209/" title="Kubernetes 静态 Pod（Static Pod）详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 静态 Pod（Static Pod）详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 静态 Pod（Static Pod）详解平常我们创建的 Pod 都要经过 API Server，由控制面统一调度和管理。但集群的核心组件（比如 API Server 自己）在集群还没起来时怎么办？这时就轮到静态 Pod 登场——它由 kubelet 直接管理，绕过 API Server，是集群自举（bootstrap）的关键机制。 一、静态 Pod 的定义静态 Pod 是由 kubelet 直接管理的 Pod，其配置文件通常存于节点特定目录。kubelet 定时扫描这些配置文件，依其内容创建、更新或删除 Pod。与经 API 服务器管理的 Pod（如 Deployment、DaemonSet 等）不同，静态 Pod 不受 Kubernetes 控制面直接管控。 静态 Pod 具有以下特点：  直接管理：由 kubelet 直接管理，无需依赖 API 服务器。 本地控制：kubelet 通过扫描配置文件目录实现对静态 Pod 的管理。 节点绑定：始终绑定在创建它的节点，不能跨节点调度。 配置简单：配置文件简单直接，但灵活性欠佳。  二、静态 Pod 的创建方式...</div></div></div></a><a class="pagination-related" href="/posts/1000207/" title="Kubernetes hostPath 卷详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes hostPath 卷详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes hostPath 卷详解 本文是《存储：Volume、持久卷与配置容器》中 hostPath 小节的深入展开，聚焦生产实践中的用法、安全风险与排障。  一、基本概念hostPath 是 Kubernetes 提供的一种卷类型，它允许将宿主机的文件系统路径挂载到 Pod 中。这使得 Pod 能够直接访问宿主机上的文件、目录或设备。 正因为它直接打通了容器与宿主机的文件系统边界，hostPath 既强大又危险——用对了是日志采集、节点监控的利器，用错了会带来严重的安全风险（后文详述）。 二、核心用途 访问宿主机系统日志：如 /var/log。 访问节点特定数据：如节点配置、证书等。 开发调试：在开发环境中快速访问宿主机文件。 特殊系统组件：如监控代理、日志收集器等需要访问宿主机资源的组件。  三、配置语法12345volumes:  - name: volume-name    hostPath:      path: &quot;/absolute/path/on/host&quot;    # 必须是宿主机上的绝对路径      type: Director...</div></div></div></a><a class="pagination-related" href="/posts/1000217/" title="Kubernetes 包管理器 Helm 入门：架构、工作流程与 Chart 结构"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes 包管理器 Helm 入门：架构、工作流程与 Chart 结构</div></div><div class="info-2"><div class="info-item-1">一、Helm 是什么Helm 是 Kubernetes 的包管理器，就像 Linux 世界里的 apt &#x2F; yum 一样，能快速查找、下载、安装和管理为 Kubernetes 构建的软件包。它把一组相关的 Kubernetes 资源打包成一个可复用、可版本化的整体来统一管理。  版本说明（重要）：早期的 Helm 2 采用「客户端 helm + 服务端 Tiller」的架构，Tiller 常驻集群、代表用户操作 API Server，带来了权限过大、安全隐患等问题。Helm 3（2019 年底发布，目前的主流版本）已彻底移除 Tiller，改为纯客户端架构：helm 直接使用你本地 kubeconfig 的凭据与 API Server 通信，权限与 RBAC 完全对齐。本文以 Helm 3 为准，下文不再涉及 Tiller。  二、Helm 解决的痛点在 Kubernetes 中部署一个真正可用的应用，往往需要多个资源协作。以部署一个 WordPress 博客为例：  Deployment：部署应用本体。 Service：提供服务发现与访问入口。 Secret：存放 W...</div></div></div></a><a class="pagination-related" href="/posts/1000204/" title="Kubernetes 中容器创建的全流程详解"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 中容器创建的全流程详解</div></div><div class="info-2"><div class="info-item-1">Kubernetes 中容器创建的全流程详解从 kubectl 提交请求到容器真正跑起来，Kubernetes 内部经历了调度、运行时、存储、网络等多个组件的协同。下面按 10 个阶段拆解整个流程。 graph TD     A[1 调度器选择节点] --&gt; B[2 Kubelet 接收请求]     B --&gt; C[3 CRI 请求处理]     C --&gt; D[4 CSI 插件介入 存储卷]     D --&gt; E[5 Pod Sandbox 创建 + 网络命名空间]     E --&gt; F[6 CNI 插件配置网络]     F --&gt; G[7 Container Runtime 管理]     G --&gt; H[8 启动 Pod 内业务容器]     H --&gt; I[9 结果反馈与状态更新]     I --&gt; J[10 故障恢复与自愈]  1. 调度器选择节点 资源评估：Kubernetes 调度器评估所有候选节点的资源状态，包括 CPU、内存、存储空间等，确保节点有足够的资源支持 Pod 的运行。 调度策略：根据预设...</div></div></div></a><a class="pagination-related" href="/posts/1000225/" title="Kubernetes 调度器详解：从调度流程到自定义调度器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">Kubernetes 调度器详解：从调度流程到自定义调度器</div></div><div class="info-2"><div class="info-item-1">kube-scheduler 是 Kubernetes 控制平面的核心组件，负责为每个待调度的 Pod 挑选一个最合适的节点。本文从调度的完整流程出发，覆盖优先级调度与抢占、调度器调优、默认调度器的部署形态，以及基于调度框架的自定义调度扩展。  提示：本文调度器配置示例统一采用稳定版 API kubescheduler.config.k8s.io/v1（自 Kubernetes 1.25 起 GA）。早期文档中的 v1beta1、v1beta2 等版本已废弃，请以本文为准。  一、调度过程API Server 在接受客户端提交的 Pod 对象创建请求后，通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 调度器通过以下步骤完成调度：  Watch API Server：调度器 watch API Server，将 spec.nodeName 为空的 Pod 放入调度器内部的调度队列中。 节点预选（Predicates &#x2F; Filter）：调度器基于一系列预选规则对每个节点进行检查，过滤不符合条件的节点。例如： 节点标签必须匹配...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81%E4%B8%BA%E4%BB%80%E4%B9%88%E4%BC%9A%E5%87%BA%E7%8E%B0-fieldsV1"><span class="toc-number">1.</span> <span class="toc-text">一、为什么会出现 fieldsV1</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-Server-Side-Apply%EF%BC%88SSA%EF%BC%89"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 Server-Side Apply（SSA）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-managedFields"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 managedFields</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-fieldsV1"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 fieldsV1</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81fieldsV1-%E7%9A%84%E7%BB%93%E6%9E%84"><span class="toc-number">2.</span> <span class="toc-text">二、fieldsV1 的结构</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E4%B8%BA%E4%BB%80%E4%B9%88%E6%9F%A5%E5%88%B0%E7%9A%84-YAML-%E5%92%8C-kubectl-%E7%9C%8B%E5%88%B0%E7%9A%84%E4%B8%8D%E4%B8%80%E6%A0%B7"><span class="toc-number">3.</span> <span class="toc-text">三、为什么查到的 YAML 和 kubectl 看到的不一样</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E9%BB%98%E8%AE%A4%E8%A1%8C%E4%B8%BA"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 默认行为</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E6%98%BE%E5%BC%8F%E6%9F%A5%E8%AF%A2"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 显式查询</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-YAML-%E5%BA%8F%E5%88%97%E5%8C%96"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 YAML 序列化</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E5%A6%82%E4%BD%95%E9%9A%90%E8%97%8F-managedFields"><span class="toc-number">4.</span> <span class="toc-text">四、如何隐藏 managedFields</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%96%B9%E6%B3%95-1%EF%BC%9A%E6%9F%A5%E8%AF%A2%E5%90%8E%E7%BD%AE%E7%A9%BA-managedFields"><span class="toc-number">4.1.</span> <span class="toc-text">方法 1：查询后置空 managedFields</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%96%B9%E6%B3%95-2%EF%BC%9A%E5%BA%8F%E5%88%97%E5%8C%96%E6%97%B6%E7%94%A8%E8%87%AA%E5%AE%9A%E4%B9%89%E7%BB%93%E6%9E%84%E8%BF%87%E6%BB%A4"><span class="toc-number">4.2.</span> <span class="toc-text">方法 2：序列化时用自定义结构过滤</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%96%B9%E6%B3%95-3%EF%BC%9Akubectl-%E6%98%BE%E5%BC%8F%E6%8E%A7%E5%88%B6"><span class="toc-number">4.3.</span> <span class="toc-text">方法 3：kubectl 显式控制</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81%E5%AE%8C%E6%95%B4%E7%A4%BA%E4%BE%8B"><span class="toc-number">5.</span> <span class="toc-text">五、完整示例</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E5%B0%8F%E7%BB%93"><span class="toc-number">6.</span> <span class="toc-text">六、小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000232/" title="Kubernetes Volume Snapshots 详解">Kubernetes Volume Snapshots 详解</a><time datetime="2026-08-07T08:00:00.000Z" title="发表于 2026-08-07 16:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000231/" title="k8s 之 fieldsV1 简单介绍">k8s 之 fieldsV1 简单介绍</a><time datetime="2026-08-07T07:00:00.000Z" title="发表于 2026-08-07 15:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践">k8s 之 Kubebuilder 最佳实践</a><time datetime="2026-08-07T06:00:00.000Z" title="发表于 2026-08-07 14:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000227/" title="Kubernetes List-Watch 机制详解：从 client-go 到 Informer">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</a><time datetime="2026-08-07T05:00:00.000Z" title="发表于 2026-08-07 13:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000226/" title="Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动">Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动</a><time datetime="2026-08-07T04:00:00.000Z" title="发表于 2026-08-07 12:00:00">2026-08-07</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || '74a2e8cd21f82d9b42fce03e5858ca9d'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

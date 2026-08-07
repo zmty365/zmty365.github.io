@@ -1,0 +1,941 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>Kubebuilder 详解：设计哲学、核心概念与实战 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="Kubebuilder 是 Kubernetes SIG 官方维护的、用于构建 Kubernetes API 的框架，专注于通过自定义资源定义（CRD）扩展 Kubernetes 的能力。它类似 Web 开发里的 Rails 或 Spring Boot，能显著降低 API 开发的复杂度，并引导开发者遵循最佳实践。本文从设计哲学讲起，梳理核心概念与工作流程，最后用一个完整的 MyJob Operat">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Kubebuilder 详解：设计哲学、核心概念与实战">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000229/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="Kubebuilder 是 Kubernetes SIG 官方维护的、用于构建 Kubernetes API 的框架，专注于通过自定义资源定义（CRD）扩展 Kubernetes 的能力。它类似 Web 开发里的 Rails 或 Spring Boot，能显著降低 API 开发的复杂度，并引导开发者遵循最佳实践。本文从设计哲学讲起，梳理核心概念与工作流程，最后用一个完整的 MyJob Operat">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-07T03:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-07T03:25:36.184Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="CRD">
+<meta property="article:tag" content="Kubebuilder">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Operator">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Kubebuilder 详解：设计哲学、核心概念与实战",
+  "url": "http://zmty365.github.io/posts/1000229/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-07T03:00:00.000Z",
+  "dateModified": "2026-08-07T03:25:36.184Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000229/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'Kubebuilder 详解：设计哲学、核心概念与实战',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">Kubebuilder 详解：设计哲学、核心概念与实战</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">Kubebuilder 详解：设计哲学、核心概念与实战</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-07T03:00:00.000Z" title="发表于 2026-08-07 11:00:00">2026-08-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">4.4k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>17分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>Kubebuilder 是 Kubernetes SIG 官方维护的、用于构建 Kubernetes API 的框架，专注于通过自定义资源定义（CRD）扩展 Kubernetes 的能力。它类似 Web 开发里的 Rails 或 Spring Boot，能显著降低 API 开发的复杂度，并引导开发者遵循最佳实践。本文从设计哲学讲起，梳理核心概念与工作流程，最后用一个完整的 <code>MyJob</code> Operator 走通从初始化到实现控制器的全过程。</p>
+<h2 id="一、Kubebuilder-的设计哲学"><a href="#一、Kubebuilder-的设计哲学" class="headerlink" title="一、Kubebuilder 的设计哲学"></a>一、Kubebuilder 的设计哲学</h2><p>Kubebuilder 的设计哲学强调「<strong>最小化生成代码，最大化复用标准库和接口</strong>」，目的是降低维护成本、提高可读性，同时保持灵活性。它有一条层层递进的原则链：</p>
+<p><strong>1. 能用 Go 接口和库，就不用代码生成</strong></p>
+<p>优先利用 Go 的原生特性（接口、组合、反射）实现功能，而非依赖代码生成。例如 <code>client-go</code> 通过 <code>client.Object</code> 等接口操作资源，而不是为每个 CRD 生成一套客户端代码；Reconcile 逻辑也直接使用 <code>context.Context</code>、<code>client.Client</code> 等标准接口。这样能减少生成代码的复杂度，也能直接享受 Go 生态工具（静态分析、IDE 跳转）的红利。</p>
+<p><strong>2. 必须生成时，只生成一次存根</strong></p>
+<p>有些逻辑无法用标准库表达（如 CRD 的 <code>DeepCopy</code> 方法），这时才通过 <code>controller-gen</code> 生成，且<strong>只生成一次</strong>。生成的 <code>api/&lt;version&gt;/&lt;kind&gt;_types.go</code> 是存根（Stub），用户只需填字段，无需手写重复的序列化&#x2F;反序列化逻辑。生成代码只解决通用问题，业务逻辑仍由开发者掌控。</p>
+<p><strong>3. 有存根可用，就不 fork 和修改 boilerplate</strong></p>
+<p><code>kubebuilder init</code> 生成的 <code>main.go</code>、<code>controllers/&lt;kind&gt;_controller.go</code> 是完整可运行的脚手架，用户只在标记区域（如 <code>Reconcile</code> 方法）填逻辑，而不去改脚手架本身。这样框架升级时能保持兼容，避免「魔改框架」带来的技术债。</p>
+<p><strong>4. 绝不 fork 和修改 boilerplate</strong></p>
+<p>模板代码（RBAC 配置、Makefile 等）应由工具全权管理。例如 <code>config/rbac/role.yaml</code> 由 <code>make manifests</code> 自动生成，开发者通过 Go 注释（如 <code>//+kubebuilder:rbac</code>）控制内容，而不是直接编辑 YAML。这样可以避免人工干预导致的配置漂移，工具也能安全地重新生成文件而不覆盖用户逻辑。</p>
+<p><strong>设计哲学的实践对照：</strong></p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>传统方式</th>
+<th>Kubebuilder 方式</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>CRD 字段变更</td>
+<td>手改 YAML 和客户端代码</td>
+<td>改 <code>*_types.go</code>，跑 <code>make manifests</code></td>
+</tr>
+<tr>
+<td>RBAC 权限调整</td>
+<td>直接编辑 YAML</td>
+<td>通过 Go 注释生成 YAML</td>
+</tr>
+<tr>
+<td>DeepCopy 方法</td>
+<td>手写或完全生成</td>
+<td>仅生成一次，用户无需关注</td>
+</tr>
+<tr>
+<td>项目初始化</td>
+<td>复制粘贴模板项目</td>
+<td><code>kubebuilder init</code> 生成标准脚手架</td>
+</tr>
+</tbody></table>
+<p>一句话总结：Kubebuilder 希望开发者像写普通 Go 程序一样编写 Operator，<strong>框架只负责消化 Kubernetes 的固有复杂度（如 CRD 生成），而不引入新的复杂度</strong>。</p>
+<h2 id="二、核心特点"><a href="#二、核心特点" class="headerlink" title="二、核心特点"></a>二、核心特点</h2><ul>
+<li>自动生成代码，提供强大的库和工具。</li>
+<li>基于 <code>controller-runtime</code> 和 <code>controller-tools</code> 两个库开发。</li>
+<li>是 Operator SDK 的基础。</li>
+</ul>
+<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/posts/1000229/00.png" class="">
+
+<h2 id="三、核心概念"><a href="#三、核心概念" class="headerlink" title="三、核心概念"></a>三、核心概念</h2><h3 id="（一）GVK-与-GVR"><a href="#（一）GVK-与-GVR" class="headerlink" title="（一）GVK 与 GVR"></a>（一）GVK 与 GVR</h3><p><strong>GVK（Group Version Kind）</strong> 用于描述资源的<strong>类型</strong>，由 Group、Version、Kind 组成，例如 <code>apps/v1/Deployment</code>。主要用于资源的定义和描述，常见于控制器和元数据操作。</p>
+<p><strong>GVR（Group Version Resource）</strong> 用于描述资源的<strong>实例</strong>，由 Group、Version、Resource 组成，例如 <code>apps/v1/deployments/sample</code>。主要用于资源的实际操作，常见于动态客户端和工具。</p>
+<p>简单类比：GVK 像「类」，GVR 像「实例」；GVK 用于定义和描述，GVR 用于操作。</p>
+<h3 id="（二）Scheme"><a href="#（二）Scheme" class="headerlink" title="（二）Scheme"></a>（二）Scheme</h3><p>Scheme 是一张映射表，存储了 Kubernetes 原生资源与自定义资源的 <strong>GVK 与 Go 类型之间的映射关系</strong>。例如 <code>apps/v1/Deployment</code> 映射到 <code>k8s.io/api/apps/v1</code> 包里的 <code>Deployment</code> 结构体。它的作用是帮助 Kubernetes 识别和处理资源。</p>
+<h3 id="（三）SharedInformer"><a href="#（三）SharedInformer" class="headerlink" title="（三）SharedInformer"></a>（三）SharedInformer</h3><p>SharedInformer 是一个共享的资源信息管理器，负责监听某个 GVR 的变化（创建、更新、删除），并把变化分发给多个组件（如多个 Controller）。多个 Controller 可以共享同一个 SharedInformer，避免对同一资源重复建立 Watch。</p>
+<p><strong>缓存机制</strong>通过两部分协作：</p>
+<ul>
+<li><strong>Delta FIFO 队列</strong>：Watch 收到资源变化事件后，SharedInformer 把它包装成 Delta 对象（含操作类型与资源信息）放入队列。</li>
+<li><strong>本地缓存</strong>：从队列取出 Delta 处理时，按操作类型更新本地缓存中的资源状态，使本地能快速拿到最新状态，无需频繁请求 API Server。</li>
+</ul>
+<p><strong>事件分发</strong>通过注册的 EventHandler（<code>AddFunc</code>、<code>UpdateFunc</code>、<code>DeleteFunc</code>）实现：处理完一个 Delta 后，按操作类型回调对应函数，用户可在其中实现自定义逻辑（例如把资源名加入工作队列）。</p>
+<p><strong>定期同步</strong>：为防止因网络故障等原因丢失事件，SharedInformer 会周期性与 API Server 做全量同步，把资源的全部实例重新拉取并更新到本地缓存，保证一致性。</p>
+<h3 id="（四）Manager"><a href="#（四）Manager" class="headerlink" title="（四）Manager"></a>（四）Manager</h3><p>Manager 是 controller-runtime 的顶层管理对象，负责初始化并管理 Controller、Cache、Client 等组件的生命周期，提供统一入口以简化开发。</p>
+<h3 id="（五）Cache"><a href="#（五）Cache" class="headerlink" title="（五）Cache"></a>（五）Cache</h3><p>Cache 负责管理 GVK 对应的 SharedInformer，维护 GVK 与 SharedInformer 的映射关系，并提供本地缓存以减少对 API Server 的访问。</p>
+<h3 id="（六）Client"><a href="#（六）Client" class="headerlink" title="（六）Client"></a>（六）Client</h3><p>Client 是 Reconciler 操作资源的接口，分两种：<strong>Read Client</strong>（从本地缓存读取资源状态）和 <strong>Write Client</strong>（直接访问 API Server，执行创建&#x2F;更新&#x2F;删除）。</p>
+<h3 id="（七）Controller"><a href="#（七）Controller" class="headerlink" title="（七）Controller"></a>（七）Controller</h3><p>Controller 是 Reconciler 的载体，负责监听资源变化并触发 Reconciler。当它收到 SharedInformer 的变化通知后，会把对应资源的名称（Namespace + Name）加入内部 Queue，从而触发开发者编写的 Reconciler 进行调和——即对比实际状态与期望状态，并在必要时调整。</p>
+<h3 id="（八）Reconciler"><a href="#（八）Reconciler" class="headerlink" title="（八）Reconciler"></a>（八）Reconciler</h3><p>Reconciler 是开发者的核心逻辑：接收资源变化事件，从 Cache 读取当前状态，再通过 Client 更新状态，确保实际状态向期望状态收敛。</p>
+<h2 id="四、核心流程"><a href="#四、核心流程" class="headerlink" title="四、核心流程"></a>四、核心流程</h2><p>把上面的组件串起来，Kubebuilder 的整体工作流程如下：</p>
+<pre><code class="highlight mermaid">graph TB
+    S[初始化 Scheme 注册 GVK 与 Go 类型] --&gt; M[初始化 Manager 创建 Controller Cache Client]
+    M --&gt; B[Controller 绑定 Reconciler]
+    B --&gt; W[Controller 从 Cache 获取 SharedInformer 监听资源变化]
+    W --&gt; E[SharedInformer 通过 EventHandler 通知 Controller]
+    E --&gt; Q[Controller 将 Namespace 和 Name 加入 Queue]
+    Q --&gt; R[从 Queue 取出并调用 Reconcile]
+    R --&gt; RD[Reconciler 经 Client 从 Cache 读取当前状态]
+    RD --&gt; WR[Reconciler 经 Client 更新资源状态]</code></pre>
+
+<ol>
+<li><strong>初始化 Scheme</strong>：注册 Kubernetes 原生资源和自定义资源的 GVK 与 Go 类型。</li>
+<li><strong>初始化 Manager</strong>：由 Manager 创建 Controller、Cache、Client 并管理它们的生命周期；Controller 的初始化包括创建 Queue 和设置 Watcher。</li>
+<li><strong>绑定 Reconciler</strong>：Controller 由 Manager 创建，并与 Reconciler 绑定。</li>
+<li><strong>监听资源变化</strong>：Controller 从 Cache 获取 SharedInformer，通过 GVK 监听资源变化，并借助本地缓存和 Delta FIFO 队列高效管理状态。</li>
+<li><strong>触发 Reconciler</strong>：SharedInformer 通过 EventHandler 把变化事件通知 Controller，Controller 将资源的 Namespace 和 Name 加入 Queue。</li>
+<li><strong>执行调和逻辑</strong>：Controller 从 Queue 取出事件，调用 Reconciler 的 <code>Reconcile</code> 方法（参数是含 Namespace 和 Name 的 <code>reconcile.Request</code>）；Reconciler 通过 Client 读取当前状态，再据控制逻辑更新资源。</li>
+</ol>
+<h2 id="五、Reconcile-会在什么时候被触发"><a href="#五、Reconcile-会在什么时候被触发" class="headerlink" title="五、Reconcile 会在什么时候被触发"></a>五、Reconcile 会在什么时候被触发</h2><p><code>Reconcile</code> 是控制器的核心，负责确保资源的实际状态与期望状态一致。它会在以下几种情况下被调用：</p>
+<ol>
+<li><strong>资源创建时</strong>：用户 <code>kubectl apply</code> 创建一个 CR 实例（如 <code>MyJob</code>），控制器收到创建事件，把请求入队并调用 <code>Reconcile</code> 处理新资源。</li>
+<li><strong>资源更新时</strong>：用户修改已有 CR 的 <code>Spec</code> 等字段，控制器监测到更新事件，入队并调用 <code>Reconcile</code>，使实际状态与新的期望状态匹配。</li>
+<li><strong>资源删除时</strong>：用户删除 CR，控制器收到删除事件，调用 <code>Reconcile</code> 执行清理（如删除关联的 Pod）。</li>
+<li><strong>周期性同步</strong>：为防止因网络问题、API Server 故障等丢失事件，控制器会周期性重新检查所有关注的资源，对每个资源调用 <code>Reconcile</code> 兜底，保证一致性。</li>
+<li><strong>关联资源变化时</strong>：若控制器监视了关联资源，当这些资源变化时也会触发 <code>Reconcile</code>。例如监视了 Pod，当归属某个 <code>MyJob</code> 的 Pod 状态改变（完成、失败）时，会把对应 <code>MyJob</code> 入队并调和。</li>
+</ol>
+<p>关联资源触发调和，在 controller-runtime 里通常用 <code>.Owns(...)</code> 表达：它会监视归属本 CR 的子资源，并在子资源变化时把 owner CR 入队。</p>
+<h2 id="六、安装-Kubebuilder"><a href="#六、安装-Kubebuilder" class="headerlink" title="六、安装 Kubebuilder"></a>六、安装 Kubebuilder</h2><p><strong>1. 下载可执行文件</strong></p>
+<p>访问 Kubebuilder 发行页 <a target="_blank" rel="noopener" href="https://github.com/kubernetes-sigs/kubebuilder/releases">https://github.com/kubernetes-sigs/kubebuilder/releases</a>，在对应版本的「Assets」区选择与你的操作系统和架构相匹配的安装包下载。</p>
+<p><strong>2. 下载到 Linux（以 3.14.0、linux amd64 为例）</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wget https://github.com/kubernetes-sigs/kubebuilder/releases/download/v3.14.0/kubebuilder_linux_amd64</span><br></pre></td></tr></table></figure>
+
+<p><strong>3. 安装</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">mv</span> kubebuilder_linux_amd64 kubebuilder</span><br><span class="line"><span class="built_in">chmod</span> +x kubebuilder &amp;&amp; <span class="built_in">mv</span> kubebuilder /usr/local/bin/</span><br></pre></td></tr></table></figure>
+
+<p><strong>4. 验证</strong></p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubebuilder version</span><br></pre></td></tr></table></figure>
+
+<p>安装成功会输出类似信息：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Version: main.version&#123;KubeBuilderVersion:<span class="string">&quot;3.14.0&quot;</span>, KubernetesVendor:<span class="string">&quot;1.27.1&quot;</span>, GitCommit:<span class="string">&quot;11053630918ac421cb6eb6f0a3225e2a2ad49535&quot;</span>, BuildDate:<span class="string">&quot;2024-01-30T09:29:27Z&quot;</span>, GoOs:<span class="string">&quot;linux&quot;</span>, GoArch:<span class="string">&quot;amd64&quot;</span>&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="七、开发一个-Operator-的整体步骤"><a href="#七、开发一个-Operator-的整体步骤" class="headerlink" title="七、开发一个 Operator 的整体步骤"></a>七、开发一个 Operator 的整体步骤</h2><ol>
+<li><strong>定义自定义资源</strong>：用 CRD 描述你的应用。除必备的 <code>TypeMeta</code>、<code>ObjectMeta</code> 外，还应包含资源规范 <code>Spec</code> 和资源状态 <code>Status</code> 字段。</li>
+<li><strong>创建 Operator</strong>：编写自定义控制器监控并处理 CR。当用户创建或修改 CR 时，控制器获取变化后的 CR，根据 <code>Metadata</code>、<code>Spec</code> 等字段执行必要操作，并把状态信息写回 <code>Status</code> 字段供用户查看。</li>
+<li><strong>部署 Operator</strong>：分两部分——安装 CRD（让集群识别该资源），部署 Controller（通常打包成镜像，以 Deployment 运行在控制面之外）。</li>
+<li><strong>创建与管理 CR 实例</strong>：用 <code>kubectl</code> 或 YAML 创建、管理 CR 实例。</li>
+</ol>
+<h2 id="八、项目初始化"><a href="#八、项目初始化" class="headerlink" title="八、项目初始化"></a>八、项目初始化</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">go <span class="built_in">env</span> -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct</span><br><span class="line">kubebuilder init --domain github.com --repo github.com/new</span><br></pre></td></tr></table></figure>
+
+<ul>
+<li><code>--domain github.com</code>：项目域名，也是后续 CRD Group 的 Domain。比如后续创建名为 <code>Application</code> 的 CRD，加上 domain 后完整名称就是 <code>application.github.com</code>。</li>
+<li><code>--repo github.com/new</code>：仓库地址，也就是 Go module 名称。</li>
+</ul>
+<p>初始化后的目录结构（节选）：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">.</span><br><span class="line">├── Dockerfile</span><br><span class="line">├── Makefile</span><br><span class="line">├── PROJECT</span><br><span class="line">├── cmd</span><br><span class="line">│   └── main.go</span><br><span class="line">├── config</span><br><span class="line">│   ├── default</span><br><span class="line">│   ├── manager</span><br><span class="line">│   ├── prometheus</span><br><span class="line">│   └── rbac</span><br><span class="line">├── go.mod</span><br><span class="line">├── go.sum</span><br><span class="line">├── hack</span><br><span class="line">│   └── boilerplate.go.txt</span><br><span class="line">└── <span class="built_in">test</span></span><br><span class="line">    ├── e2e</span><br><span class="line">    └── utils</span><br></pre></td></tr></table></figure>
+
+<h2 id="九、创建-API"><a href="#九、创建-API" class="headerlink" title="九、创建 API"></a>九、创建 API</h2><p>创建 API 对象时就会用到前面的 GVK。这里创建一个名为 <code>MyJob</code> 的 CRD：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">kubebuilder create api --group myjob --version v1beta1 --kind MyJob</span><br></pre></td></tr></table></figure>
+
+<p><code>--namespaced=true</code> 指定 CRD 的 scope，默认是 namespaced；若是集群范围的 CRD，创建时需设为 false。</p>
+<p>执行后目录新增了几处关键内容：</p>
+<ul>
+<li><code>api/v1beta1/</code>：CRD 对象定义（<code>*_types.go</code>、<code>groupversion_info.go</code>、<code>zz_generated.deepcopy.go</code>）。</li>
+<li><code>internal/controller/</code>：Controller 实现。</li>
+<li><code>config/crd/</code>、<code>config/samples/</code>：CRD 清单与示例 CR。</li>
+<li><code>bin/</code>：<code>controller-gen</code> 等工具。</li>
+</ul>
+<p>接下来要做的就是完善 CRD 的 types 定义并实现 Controller。</p>
+<h2 id="十、修改-CRD-types-文件"><a href="#十、修改-CRD-types-文件" class="headerlink" title="十、修改 CRD types 文件"></a>十、修改 CRD types 文件</h2><p>在 <code>api/v1beta1/myjob_types.go</code> 中定义 <code>MyJob</code> 的 Spec、Status 及状态常量：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> v1beta1</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    v1 <span class="string">&quot;k8s.io/api/core/v1&quot;</span></span><br><span class="line">    metav1 <span class="string">&quot;k8s.io/apimachinery/pkg/apis/meta/v1&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> (</span><br><span class="line">    <span class="comment">// MyJob 刚创建时的默认状态</span></span><br><span class="line">    MyJobPending = <span class="string">&quot;pending&quot;</span></span><br><span class="line">    <span class="comment">// MyJob 管理的 Pod 创建后对应的状态</span></span><br><span class="line">    MyJobRunning = <span class="string">&quot;running&quot;</span></span><br><span class="line">    <span class="comment">// MyJob 管理的 Pod 执行完成后对应的状态</span></span><br><span class="line">    MyJobCompleted = <span class="string">&quot;completed&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MyJobSpec <span class="keyword">struct</span> &#123;</span><br><span class="line">    Template v1.PodTemplateSpec <span class="string">`json:&quot;template&quot; protobuf:&quot;bytes,6,opt,name=template&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MyJobStatus <span class="keyword">struct</span> &#123;</span><br><span class="line">    Phase <span class="type">string</span> <span class="string">`json:&quot;phase,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MyJob <span class="keyword">struct</span> &#123;</span><br><span class="line">    metav1.TypeMeta   <span class="string">`json:&quot;,inline&quot;`</span></span><br><span class="line">    metav1.ObjectMeta <span class="string">`json:&quot;metadata,omitempty&quot;`</span></span><br><span class="line"></span><br><span class="line">    Spec   MyJobSpec   <span class="string">`json:&quot;spec,omitempty&quot;`</span></span><br><span class="line">    Status MyJobStatus <span class="string">`json:&quot;status,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MyJobList <span class="keyword">struct</span> &#123;</span><br><span class="line">    metav1.TypeMeta <span class="string">`json:&quot;,inline&quot;`</span></span><br><span class="line">    metav1.ListMeta <span class="string">`json:&quot;metadata,omitempty&quot;`</span></span><br><span class="line">    Items           []MyJob <span class="string">`json:&quot;items&quot;`</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// SetDefault 为空状态设置默认值，返回是否发生了改变</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(s *MyJobStatus)</span></span> SetDefault(job *MyJob) <span class="type">bool</span> &#123;</span><br><span class="line">    <span class="keyword">if</span> job.Status.Phase == <span class="string">&quot;&quot;</span> &#123;</span><br><span class="line">        job.Status.Phase = MyJobPending</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(j *MyJob)</span></span> StatusSetDefault() <span class="type">bool</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> j.Status.SetDefault(j)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> &#123;</span><br><span class="line">    SchemeBuilder.Register(&amp;MyJob&#123;&#125;, &amp;MyJobList&#123;&#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>改完 types 后，还需要生成对应的 CRD YAML：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make manifests</span><br></pre></td></tr></table></figure>
+
+<p>它会调用 <code>controller-gen</code> 根据代码里的资源规范生成清单，保证 YAML 与代码同步。<strong>以后但凡改了 <code>api/v1beta1/myjob_types.go</code>，就要重新执行一次 <code>make manifests</code>。</strong></p>
+<h2 id="十一、实现-Controller"><a href="#十一、实现-Controller" class="headerlink" title="十一、实现 Controller"></a>十一、实现 Controller</h2><p>Controller 位于 <code>internal/controller/myjob_controller.go</code>。下面这段逻辑做的事情是：为新建的 <code>MyJob</code> 设置默认状态；若对应 Pod 不存在则创建；再根据 Pod 的运行 &#x2F; 完成状态把 <code>MyJob</code> 的 <code>Phase</code> 从 <code>Running</code> 推进到 <code>Completed</code>。</p>
+<blockquote>
+<p><strong>注意</strong>：新版 controller-runtime（0.15+）已废弃 <code>source.Kind&#123;Type:...&#125;</code> 结构体写法与 <code>handler.EnqueueRequestForOwner&#123;&#125;</code> 结构体字面量，改用泛型与函数式 API。对于「监听归属本 CR 的子资源」这一常见需求，最简洁且正确的写法是 <code>.Owns(&amp;corev1.Pod&#123;&#125;)</code>。日志也不再往 Reconciler 里塞 <code>logr.Logger</code> 字段，而是用 <code>log.FromContext(ctx)</code> 从上下文获取。</p>
+</blockquote>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> controller</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;context&quot;</span></span><br><span class="line"></span><br><span class="line">    corev1 <span class="string">&quot;k8s.io/api/core/v1&quot;</span></span><br><span class="line">    <span class="string">&quot;k8s.io/apimachinery/pkg/api/errors&quot;</span></span><br><span class="line">    metav1 <span class="string">&quot;k8s.io/apimachinery/pkg/apis/meta/v1&quot;</span></span><br><span class="line">    <span class="string">&quot;k8s.io/apimachinery/pkg/runtime&quot;</span></span><br><span class="line">    ctrl <span class="string">&quot;sigs.k8s.io/controller-runtime&quot;</span></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/client&quot;</span></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/controller/controllerutil&quot;</span></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/log&quot;</span></span><br><span class="line"></span><br><span class="line">    myjobv1beta1 <span class="string">&quot;github.com/sky-big/myjob-operator/api/v1beta1&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// MyJobReconciler 调谐 MyJob 对象</span></span><br><span class="line"><span class="keyword">type</span> MyJobReconciler <span class="keyword">struct</span> &#123;</span><br><span class="line">    client.Client</span><br><span class="line">    Scheme *runtime.Scheme</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=myjob.github.com,resources=myjobs,verbs=get;list;watch;create;update;patch;delete</span></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=myjob.github.com,resources=myjobs/status,verbs=get;update;patch</span></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=myjob.github.com,resources=myjobs/finalizers,verbs=update</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, <span class="type">error</span>) &#123;</span><br><span class="line">    logger := log.FromContext(ctx)</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 根据 req.NamespacedName 精准获取唯一的 MyJob 实例</span></span><br><span class="line">    <span class="comment">// 忽略 &quot;对象未找到&quot;（说明已被删除）</span></span><br><span class="line">    j := &amp;myjobv1beta1.MyJob&#123;&#125;</span><br><span class="line">    <span class="keyword">if</span> err := r.Get(ctx, req.NamespacedName, j); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> ctrl.Result&#123;&#125;, client.IgnoreNotFound(err)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 新建 MyJob 时设置默认状态；若状态被改动则更新并重新入队</span></span><br><span class="line">    <span class="keyword">if</span> j.StatusSetDefault() &#123;</span><br><span class="line">        <span class="keyword">if</span> err := r.Status().Update(ctx, j); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> ctrl.Result&#123;Requeue: <span class="literal">true</span>&#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 查询对应的 Pod</span></span><br><span class="line">    p := &amp;corev1.Pod&#123;&#125;</span><br><span class="line">    err := r.Get(ctx, req.NamespacedName, p)</span><br><span class="line">    <span class="keyword">if</span> err == <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="comment">// Pod 已创建但 MyJob 仍非 Running，则置为 Running</span></span><br><span class="line">        <span class="keyword">if</span> !isPodCompleted(p) &amp;&amp; myjobv1beta1.MyJobRunning != j.Status.Phase &#123;</span><br><span class="line">            j.Status.Phase = myjobv1beta1.MyJobRunning</span><br><span class="line">            <span class="keyword">if</span> err := r.Status().Update(ctx, j); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">            &#125;</span><br><span class="line">            logger.Info(<span class="string">&quot;myjob phase changed&quot;</span>, <span class="string">&quot;Phase&quot;</span>, myjobv1beta1.MyJobRunning)</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// Pod 已执行完毕且 MyJob 为 Running，则置为 Completed</span></span><br><span class="line">        <span class="keyword">if</span> isPodCompleted(p) &amp;&amp; myjobv1beta1.MyJobRunning == j.Status.Phase &#123;</span><br><span class="line">            j.Status.Phase = myjobv1beta1.MyJobCompleted</span><br><span class="line">            <span class="keyword">if</span> err := r.Status().Update(ctx, j); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">            &#125;</span><br><span class="line">            logger.Info(<span class="string">&quot;myjob phase changed&quot;</span>, <span class="string">&quot;Phase&quot;</span>, myjobv1beta1.MyJobCompleted)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> <span class="keyword">if</span> errors.IsNotFound(err) &#123;</span><br><span class="line">        <span class="comment">// Pod 不存在则根据 MyJob 创建，并设置 owner 引用（MyJob 删除时 Pod 级联删除）</span></span><br><span class="line">        pod := makePodByMyJob(j)</span><br><span class="line">        <span class="keyword">if</span> err := controllerutil.SetControllerReference(j, pod, r.Scheme); err != <span class="literal">nil</span> &#123;</span><br><span class="line">            <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">if</span> err := r.Create(ctx, pod); err != <span class="literal">nil</span> &amp;&amp; !errors.IsAlreadyExists(err) &#123;</span><br><span class="line">            <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">        &#125;</span><br><span class="line">        logger.Info(<span class="string">&quot;myjob create pod success&quot;</span>)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">return</span> ctrl.Result&#123;&#125;, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>SetupWithManager</code> 用来注册控制器：<code>For</code> 指定主资源 <code>MyJob</code>，<code>Owns</code> 让控制器监听归属某个 <code>MyJob</code> 的 Pod——当这些 Pod 变化时，会把其 owner <code>MyJob</code> 入队触发调和：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> SetupWithManager(mgr ctrl.Manager) <span class="type">error</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ctrl.NewControllerManagedBy(mgr).</span><br><span class="line">        For(&amp;myjobv1beta1.MyJob&#123;&#125;).</span><br><span class="line">        Owns(&amp;corev1.Pod&#123;&#125;). <span class="comment">// 监听归属 MyJob 的 Pod，变化时调和其 owner</span></span><br><span class="line">        Complete(r)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">isPodCompleted</span><span class="params">(pod *corev1.Pod)</span></span> <span class="type">bool</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> corev1.PodSucceeded == pod.Status.Phase ||</span><br><span class="line">        corev1.PodFailed == pod.Status.Phase ||</span><br><span class="line">        pod.DeletionTimestamp != <span class="literal">nil</span></span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">makePodByMyJob</span><span class="params">(j *myjobv1beta1.MyJob)</span></span> *corev1.Pod &#123;</span><br><span class="line">    <span class="keyword">return</span> &amp;corev1.Pod&#123;</span><br><span class="line">        ObjectMeta: metav1.ObjectMeta&#123;</span><br><span class="line">            Name:      j.Name,</span><br><span class="line">            Namespace: j.Namespace,</span><br><span class="line">        &#125;,</span><br><span class="line">        Spec: *j.Spec.Template.Spec.DeepCopy(),</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// listMyJobsInNamespace 返回指定命名空间下的所有 MyJob 实例</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="title">listMyJobsInNamespace</span><span class="params">(r client.Client, namespace <span class="type">string</span>)</span></span> (*myjobv1beta1.MyJobList, <span class="type">error</span>) &#123;</span><br><span class="line">    ctx := context.Background()</span><br><span class="line">    myJobList := &amp;myjobv1beta1.MyJobList&#123;&#125;</span><br><span class="line">    listOptions := client.ListOptions&#123;</span><br><span class="line">        Namespace: namespace,</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> err := r.List(ctx, myJobList, &amp;listOptions); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span>, err</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> myJobList, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="十二、后续操作"><a href="#十二、后续操作" class="headerlink" title="十二、后续操作"></a>十二、后续操作</h2><p><strong>1. 重新生成资源清单</strong></p>
+<p>types 结构文件编写好、Controller 开发完毕后，再次执行以下命令重新生成资源清单：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make manifests</span><br></pre></td></tr></table></figure>
+
+<p>通过运行此命令，可以确保生成的 Kubernetes 资源清单文件与代码中定义的资源规范保持同步。以后但凡更改了 <code>api/v1beta1/myjob_types.go</code> 文件，就一定要执行一下 <code>make manifests</code>。</p>
+<p><strong>2. 安装 CRD 到 Kubernetes集群</strong></p>
+<p>将生成的 CRD 安装到当前的 Kubernetes 集群中：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make install</span><br></pre></td></tr></table></figure>
+
+<p>此命令会将自定义资源定义（CRD）应用到集群中，使 Kubernetes 集群能够识别该自定义资源。</p>
+<p><strong>3. 前台运行 Controller</strong></p>
+<p>如果想快速查看 Controller 的效果、验证自己的代码，可以先在前台运行 Controller：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">make run</span><br></pre></td></tr></table></figure>
+
+<p>执行后 Controller 会在前台启动并开始监控和处理定义的 CR。当有 CR 被创建、修改或删除时，Controller 会根据其逻辑进行相应操作，并更新 CR 的状态信息。</p>
+<h2 id="十三、小结"><a href="#十三、小结" class="headerlink" title="十三、小结"></a>十三、小结</h2><p>Kubebuilder 用一套「最小化生成、最大化复用接口」的设计，把编写 Operator 简化成了写普通 Go 程序：</p>
+<ul>
+<li><strong>设计哲学</strong>决定了它只在必要处生成一次存根代码，其余交给 Go 接口与 boilerplate，升级友好、维护成本低。</li>
+<li><strong>核心概念</strong>（GVK&#x2F;GVR、Scheme、SharedInformer、Manager&#x2F;Cache&#x2F;Client、Controller、Reconciler）共同支撑起 controller-runtime 的运行模型。</li>
+<li><strong>实战流程</strong>从 <code>kubebuilder init</code>、<code>create api</code>、改 types、写 Reconciler，到 <code>make manifests</code> 生成清单，形成一条清晰的开发闭环。</li>
+</ul>
+<p>掌握这套流程后，管理有状态应用、封装运维知识就都能以声明式的方式落到 CRD + 控制器上。</p>
+<blockquote>
+<p>参考资料：<a target="_blank" rel="noopener" href="https://xie.infoq.cn/article/e3345fdc1c7390a779231e799">https://xie.infoq.cn/article/e3345fdc1c7390a779231e799</a></p>
+</blockquote>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000229/">http://zmty365.github.io/posts/1000229/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/Operator/">Operator</a><a class="post-meta__tags" href="/tags/CRD/">CRD</a><a class="post-meta__tags" href="/tags/Kubebuilder/">Kubebuilder</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000225/" title="Kubernetes 调度器详解：从调度流程到自定义调度器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes 调度器详解：从调度流程到自定义调度器</div></div><div class="info-2"><div class="info-item-1">kube-scheduler 是 Kubernetes 控制平面的核心组件，负责为每个待调度的 Pod 挑选一个最合适的节点。本文从调度的完整流程出发，覆盖优先级调度与抢占、调度器调优、默认调度器的部署形态，以及基于调度框架的自定义调度扩展。  提示：本文调度器配置示例统一采用稳定版 API kubescheduler.config.k8s.io/v1（自 Kubernetes 1.25 起 GA）。早期文档中的 v1beta1、v1beta2 等版本已废弃，请以本文为准。  一、调度过程API Server 在接受客户端提交的 Pod 对象创建请求后，通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 调度器通过以下步骤完成调度：  Watch API Server：调度器 watch API Server，将 spec.nodeName 为空的 Pod 放入调度器内部的调度队列中。 节点预选（Predicates &#x2F; Filter）：调度器基于一系列预选规则对每个节点进行检查，过滤不符合条件的节点。例如： 节点标签必须匹配...</div></div></div></a><a class="pagination-related" href="/posts/1000223/" title="在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用</div></div><div class="info-2"><div class="info-item-1">本文记录在 Windows（借助 WSL）中搭建单节点 Kubernetes 集群的完整过程，涵盖 minikube、k9s、helm 的安装，以及 minikube 的基本使用。 一、安装 minikube1.1 前置准备 安装 WSL，例如 Ubuntu 22.04。  安装 Chocolatey，它是 Windows 的包管理工具。打开 PowerShell（以管理员身份运行），执行以下命令： 1Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString(&#x27;https://chocolatey.org/install.ps1&#x27;))  使用 Chocolatey 安装 Minikube...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">k8s 之 Kubebuilder 最佳实践</div></div><div class="info-2"><div class="info-item-1">在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据。 一、OwnerReferenceKubernetes 中的对象可以通过 metadata.ownerReferences 字段声明自己的「所有者」（Owner）。这种父子关系带来两个重要能力：  级联删除（Garbage Collection）：删除父对象时，Kubernetes 会自动删除其所有子对象，无需在控制器里手动清理。 触发调谐（Reconcile）：当子对象发生变更时，可以让父对象所属的控制器重新触发一次 Reconcile。  1.1 设置 OwnerReference在控制器创建子资源时，通过 controllerutil.SetControllerReference...</div></div></div></a><a class="pagination-related" href="/posts/1000228/" title="扩展 Kubernetes Controller 的三种方式"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">扩展 Kubernetes Controller 的三种方式</div></div><div class="info-2"><div class="info-item-1">当内置资源无法满足业务需求时，Kubernetes 提供了多种扩展点，让我们能够把「自定义的运维逻辑」以声明式的方式接入集群。本文梳理三种主流的扩展方式：基于 CRD + 自定义控制器的 Operator、基于 API 聚合层的 扩展 API Server、以及在请求链路上做拦截的 Admission Controller（准入控制器），并说明它们各自的适用场景与取舍。 三种方式在扩展层次上并不冲突，而是作用在不同的位置： graph TB     Client[kubectl / 客户端] --&gt; API[kube-apiserver]     API --&gt;|请求进入时拦截校验/修改| ADM[Admission Controller 准入控制器]     API --&gt;|内置资源存 etcd| ETCD[etcd]     API --&gt;|聚合层转发自定义 API| AGG[扩展 API Server 独立进程]     CRD[CRD 自定义资源] --&gt; API     OP[Operator 自定义控制器] --&gt;|Watch CR...</div></div></div></a><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a><a class="pagination-related" href="/posts/1000220/" title="Kubernetes CSI 详解：架构、组件与工作原理"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes CSI 详解：架构、组件与工作原理</div></div><div class="info-2"><div class="info-item-1">一、CSI 概述Container Storage Interface（CSI）是一套标准化接口，用于定义容器编排系统（如 Kubernetes）与存储供应商之间的交互方式。它的目标是让存储供应商开发的插件能够兼容多个容器编排系统（Kubernetes、Mesos、Swarm 等），从而简化存储资源的管理和使用。 在 Kubernetes 中，CSI 提供了一种标准方式，用于与第三方存储供应商（如 NFS、AWS EFS、Ceph、GlusterFS 等）对接，实现存储卷的创建、挂载、卸载等操作。CSI 的引入取代了旧的 FlexVolume 插件机制，提供了更灵活、更强大的存储管理能力。 二、CSI 系统架构  CSI 在 Kubernetes 中分为控制端和节点端两部分： Controller Server（控制服务器）  功能：负责存储卷的生命周期管理，包括卷的创建、删除、挂载、卸载等操作。 部署方式：通常以 StatefulSet 或 Deployment 的形式运行，确保高可用性和唯一性。 组件： CSI 驱动容器：由第三方存储供应商提供，实现 CSI 接口的 Iden...</div></div></div></a><a class="pagination-related" href="/posts/1000223/" title="在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">在 Windows 中搭建单节点 k8s 集群：minikube、k9s、helm 安装与使用</div></div><div class="info-2"><div class="info-item-1">本文记录在 Windows（借助 WSL）中搭建单节点 Kubernetes 集群的完整过程，涵盖 minikube、k9s、helm 的安装，以及 minikube 的基本使用。 一、安装 minikube1.1 前置准备 安装 WSL，例如 Ubuntu 22.04。  安装 Chocolatey，它是 Windows 的包管理工具。打开 PowerShell（以管理员身份运行），执行以下命令： 1Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString(&#x27;https://chocolatey.org/install.ps1&#x27;))  使用 Chocolatey 安装 Minikube...</div></div></div></a><a class="pagination-related" href="/posts/1000206/" title="Kubernetes 存储：Volume、持久卷与配置容器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 存储：Volume、持久卷与配置容器</div></div><div class="info-2"><div class="info-item-1">Kubernetes 存储：Volume、持久卷与配置容器Kubernetes 支持很多类型的卷，一个 Pod 可以同时使用任意数目的卷。按生命周期可以分成两大类：  临时卷：生命周期与 Pod 相同。Pod 被删除时，卷也随之销毁。 持久卷：生命周期可以比 Pod 更长。Pod 不再存在时，Kubernetes 不会销毁持久卷。  需要注意的是：对于给定 Pod 中的任何类型的卷，在容器重启期间数据都不会丢失——因为卷的生命周期跟着 Pod 走，而不是跟着容器走。 graph TD     A[Volume 卷] --&gt; B[临时卷]     A --&gt; C[持久卷]     B --&gt; B1[emptyDir&lt;br/&gt;Pod 删除即清空]     C --&gt; C1[hostPath&lt;br/&gt;绑定宿主机目录]     C --&gt; C2[nfs&lt;br/&gt;网络文件系统]     C --&gt; C3[PV / PVC&lt;br/&gt;持久卷抽象]  一、VolumeemptyDir对于定义了 emptyDir ...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81Kubebuilder-%E7%9A%84%E8%AE%BE%E8%AE%A1%E5%93%B2%E5%AD%A6"><span class="toc-number">1.</span> <span class="toc-text">一、Kubebuilder 的设计哲学</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81%E6%A0%B8%E5%BF%83%E7%89%B9%E7%82%B9"><span class="toc-number">2.</span> <span class="toc-text">二、核心特点</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81%E6%A0%B8%E5%BF%83%E6%A6%82%E5%BF%B5"><span class="toc-number">3.</span> <span class="toc-text">三、核心概念</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%80%EF%BC%89GVK-%E4%B8%8E-GVR"><span class="toc-number">3.1.</span> <span class="toc-text">（一）GVK 与 GVR</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%8C%EF%BC%89Scheme"><span class="toc-number">3.2.</span> <span class="toc-text">（二）Scheme</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%89%EF%BC%89SharedInformer"><span class="toc-number">3.3.</span> <span class="toc-text">（三）SharedInformer</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E5%9B%9B%EF%BC%89Manager"><span class="toc-number">3.4.</span> <span class="toc-text">（四）Manager</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%BA%94%EF%BC%89Cache"><span class="toc-number">3.5.</span> <span class="toc-text">（五）Cache</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E5%85%AD%EF%BC%89Client"><span class="toc-number">3.6.</span> <span class="toc-text">（六）Client</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E4%B8%83%EF%BC%89Controller"><span class="toc-number">3.7.</span> <span class="toc-text">（七）Controller</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%EF%BC%88%E5%85%AB%EF%BC%89Reconciler"><span class="toc-number">3.8.</span> <span class="toc-text">（八）Reconciler</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81%E6%A0%B8%E5%BF%83%E6%B5%81%E7%A8%8B"><span class="toc-number">4.</span> <span class="toc-text">四、核心流程</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81Reconcile-%E4%BC%9A%E5%9C%A8%E4%BB%80%E4%B9%88%E6%97%B6%E5%80%99%E8%A2%AB%E8%A7%A6%E5%8F%91"><span class="toc-number">5.</span> <span class="toc-text">五、Reconcile 会在什么时候被触发</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E5%AE%89%E8%A3%85-Kubebuilder"><span class="toc-number">6.</span> <span class="toc-text">六、安装 Kubebuilder</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%83%E3%80%81%E5%BC%80%E5%8F%91%E4%B8%80%E4%B8%AA-Operator-%E7%9A%84%E6%95%B4%E4%BD%93%E6%AD%A5%E9%AA%A4"><span class="toc-number">7.</span> <span class="toc-text">七、开发一个 Operator 的整体步骤</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AB%E3%80%81%E9%A1%B9%E7%9B%AE%E5%88%9D%E5%A7%8B%E5%8C%96"><span class="toc-number">8.</span> <span class="toc-text">八、项目初始化</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B9%9D%E3%80%81%E5%88%9B%E5%BB%BA-API"><span class="toc-number">9.</span> <span class="toc-text">九、创建 API</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8D%81%E3%80%81%E4%BF%AE%E6%94%B9-CRD-types-%E6%96%87%E4%BB%B6"><span class="toc-number">10.</span> <span class="toc-text">十、修改 CRD types 文件</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8D%81%E4%B8%80%E3%80%81%E5%AE%9E%E7%8E%B0-Controller"><span class="toc-number">11.</span> <span class="toc-text">十一、实现 Controller</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8D%81%E4%BA%8C%E3%80%81%E5%90%8E%E7%BB%AD%E6%93%8D%E4%BD%9C"><span class="toc-number">12.</span> <span class="toc-text">十二、后续操作</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8D%81%E4%B8%89%E3%80%81%E5%B0%8F%E7%BB%93"><span class="toc-number">13.</span> <span class="toc-text">十三、小结</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000232/" title="Kubernetes Volume Snapshots 详解">Kubernetes Volume Snapshots 详解</a><time datetime="2026-08-07T08:00:00.000Z" title="发表于 2026-08-07 16:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000231/" title="k8s 之 fieldsV1 简单介绍">k8s 之 fieldsV1 简单介绍</a><time datetime="2026-08-07T07:00:00.000Z" title="发表于 2026-08-07 15:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践">k8s 之 Kubebuilder 最佳实践</a><time datetime="2026-08-07T06:00:00.000Z" title="发表于 2026-08-07 14:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000227/" title="Kubernetes List-Watch 机制详解：从 client-go 到 Informer">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</a><time datetime="2026-08-07T05:00:00.000Z" title="发表于 2026-08-07 13:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000226/" title="Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动">Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动</a><time datetime="2026-08-07T04:00:00.000Z" title="发表于 2026-08-07 12:00:00">2026-08-07</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || 'dfe11525dcdbd2db82b2607946a7b3e5'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>

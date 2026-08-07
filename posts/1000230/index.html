@@ -1,0 +1,949 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>k8s 之 Kubebuilder 最佳实践 | 爱吃芝麻汤圆</title><meta name="author" content="爱吃芝麻汤圆"><meta name="copyright" content="爱吃芝麻汤圆"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#fafafa"><meta name="description" content="在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据">
+<meta property="og:type" content="article">
+<meta property="og:title" content="k8s 之 Kubebuilder 最佳实践">
+<meta property="og:url" content="http://zmty365.github.io/posts/1000230/index.html">
+<meta property="og:site_name" content="爱吃芝麻汤圆">
+<meta property="og:description" content="在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://zmty365.github.io/img/avatar.jpg">
+<meta property="article:published_time" content="2026-08-07T06:00:00.000Z">
+<meta property="article:modified_time" content="2026-08-07T03:39:10.250Z">
+<meta property="article:author" content="爱吃芝麻汤圆">
+<meta property="article:tag" content="CRD">
+<meta property="article:tag" content="Kubebuilder">
+<meta property="article:tag" content="Kubernetes">
+<meta property="article:tag" content="Operator">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://zmty365.github.io/img/avatar.jpg"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "k8s 之 Kubebuilder 最佳实践",
+  "url": "http://zmty365.github.io/posts/1000230/",
+  "image": "http://zmty365.github.io/img/avatar.jpg",
+  "datePublished": "2026-08-07T06:00:00.000Z",
+  "dateModified": "2026-08-07T03:39:10.250Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "爱吃芝麻汤圆",
+      "url": "https://github.com/zmty365"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="http://zmty365.github.io/posts/1000230/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//fonts.googleapis.com" crossorigin=""/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&amp;family=Ma+Shan+Zheng&amp;family=Fredoka+One&amp;display=swap" media="print" onload="this.media='all'"><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":400,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: true,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'k8s 之 Kubebuilder 最佳实践',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.2"></head><body><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/background.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><img class="site-icon" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" alt="Logo"><span class="site-name">爱吃芝麻汤圆</span></a><a class="nav-page-title" href="/"><span class="site-name">k8s 之 Kubebuilder 最佳实践</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/life-heatmap/"><span> 生命</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">k8s 之 Kubebuilder 最佳实践</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon far fa-calendar-alt"></i><span class="post-meta-label">发表于</span><time datetime="2026-08-07T06:00:00.000Z" title="发表于 2026-08-07 14:00:00">2026-08-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes/">Kubernetes</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">2.9k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>12分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>在《Kubebuilder 详解》中，我们走通了一个 Operator 从初始化到实现控制器的完整流程。本文进一步梳理开发 Operator 时的一些最佳实践：如何用 OwnerReference 建立父子关系并实现级联删除、如何用 Finalizers 优雅地清理资源、如何记录 Event 方便排障、如何监听自定义资源之外的其他资源，以及 Kubebuilder 提供的各类 Marker 元数据。</p>
+<h2 id="一、OwnerReference"><a href="#一、OwnerReference" class="headerlink" title="一、OwnerReference"></a>一、OwnerReference</h2><p>Kubernetes 中的对象可以通过 <code>metadata.ownerReferences</code> 字段声明自己的「所有者」（Owner）。这种父子关系带来两个重要能力：</p>
+<ul>
+<li><strong>级联删除（Garbage Collection）</strong>：删除父对象时，Kubernetes 会自动删除其所有子对象，无需在控制器里手动清理。</li>
+<li><strong>触发调谐（Reconcile）</strong>：当子对象发生变更时，可以让父对象所属的控制器重新触发一次 Reconcile。</li>
+</ul>
+<h3 id="1-1-设置-OwnerReference"><a href="#1-1-设置-OwnerReference" class="headerlink" title="1.1 设置 OwnerReference"></a>1.1 设置 OwnerReference</h3><p>在控制器创建子资源时，通过 <code>controllerutil.SetControllerReference</code> 将当前 CR 设置为子资源的 Owner：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/controller/controllerutil&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="comment">// myJob 是当前正在 Reconcile 的自定义资源</span></span><br><span class="line"><span class="comment">// pod 是要创建的子资源</span></span><br><span class="line"><span class="keyword">if</span> err := controllerutil.SetControllerReference(&amp;myJob, pod, r.Scheme); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> err := r.Create(ctx, pod); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>设置后，<code>pod</code> 的 <code>metadata.ownerReferences</code> 里就会记录 <code>myJob</code>。当 <code>myJob</code> 被删除时，<code>pod</code> 会被 Kubernetes 自动回收。</p>
+<h3 id="1-2-子资源变更触发-Owner-的-Reconcile"><a href="#1-2-子资源变更触发-Owner-的-Reconcile" class="headerlink" title="1.2 子资源变更触发 Owner 的 Reconcile"></a>1.2 子资源变更触发 Owner 的 Reconcile</h3><p>仅仅设置 OwnerReference 还不够，如果希望子资源变更时能触发父对象的 Reconcile，需要在 <code>SetupWithManager</code> 中通过 <code>.Owns()</code> 声明：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> SetupWithManager(mgr ctrl.Manager) <span class="type">error</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ctrl.NewControllerManagedBy(mgr).</span><br><span class="line">        For(&amp;batchv1.MyJob&#123;&#125;).</span><br><span class="line">        Owns(&amp;corev1.Pod&#123;&#125;). <span class="comment">// 监听归属于 MyJob 的 Pod</span></span><br><span class="line">        Complete(r)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>.Owns(&amp;corev1.Pod{})</code> 的含义是：监听所有 OwnerReference 指向 <code>MyJob</code> 的 Pod，一旦这些 Pod 发生变更，就把对应的 <code>MyJob</code> 加入调谐队列。</p>
+<h3 id="1-3-需要的-RBAC-权限"><a href="#1-3-需要的-RBAC-权限" class="headerlink" title="1.3 需要的 RBAC 权限"></a>1.3 需要的 RBAC 权限</h3><p>控制器要操作子资源，需要相应的 RBAC 权限。通过 Marker 声明：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="二、Finalizers"><a href="#二、Finalizers" class="headerlink" title="二、Finalizers"></a>二、Finalizers</h2><p>OwnerReference 的级联删除只能删除属于本集群的子对象。如果 Operator 在集群外创建了资源（比如云厂商的负载均衡、数据库实例），删除 CR 时这些外部资源不会被自动清理，就需要用 Finalizers 来做「删除前的收尾」。</p>
+<h3 id="2-1-工作原理"><a href="#2-1-工作原理" class="headerlink" title="2.1 工作原理"></a>2.1 工作原理</h3><p>Finalizer 是 <code>metadata.finalizers</code> 里的一个字符串列表。它的作用是：</p>
+<ul>
+<li>当对象的 <code>metadata.finalizers</code> 非空时，<code>kubectl delete</code> <strong>不会</strong>真正删除对象，只会给对象打上 <code>metadata.deletionTimestamp</code> 标记。</li>
+<li>控制器在 Reconcile 中检测到 <code>deletionTimestamp</code> 非空，就执行清理逻辑，清理完成后把自己的 finalizer 从列表里移除。</li>
+<li>当 finalizers 列表被清空后，Kubernetes 才会真正删除该对象。</li>
+</ul>
+<p>用流程图表示：</p>
+<pre><code class="highlight mermaid">graph TB
+    A[kubectl delete CR] --&gt; B&#123;finalizers 是否为空&#125;
+    B --&gt;|为空| C[对象被真正删除]
+    B --&gt;|非空| D[仅设置 deletionTimestamp]
+    D --&gt; E[控制器 Reconcile 检测到 deletionTimestamp]
+    E --&gt; F[执行外部资源清理]
+    F --&gt; G[移除自己的 finalizer]
+    G --&gt; B</code></pre>
+
+<h3 id="2-2-注意要点"><a href="#2-2-注意要点" class="headerlink" title="2.2 注意要点"></a>2.2 注意要点</h3><ul>
+<li><strong>命名规范</strong>：finalizer 名称建议用域名反写风格，避免与其他控制器冲突，例如 <code>batch.tutorial.kubebuilder.io/finalizer</code>。</li>
+<li><strong>清理逻辑要幂等</strong>：控制器可能多次进入清理分支，重复执行不能出错。</li>
+<li><strong>先清理再移除</strong>：只有外部资源确实清理成功，才移除 finalizer；否则应返回错误重试。</li>
+</ul>
+<h3 id="2-3-完整示例"><a href="#2-3-完整示例" class="headerlink" title="2.3 完整示例"></a>2.3 完整示例</h3><p>以一个管理外部虚拟机（VM）的 Operator 为例。删除 CR 前，需要先销毁对应的外部 VM：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">package</span> controller</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;context&quot;</span></span><br><span class="line"></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/controller/controllerutil&quot;</span></span><br><span class="line">    ctrl <span class="string">&quot;sigs.k8s.io/controller-runtime&quot;</span></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/log&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">const</span> vmFinalizer = <span class="string">&quot;vm.tutorial.kubebuilder.io/finalizer&quot;</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *VMReconciler)</span></span> Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, <span class="type">error</span>) &#123;</span><br><span class="line">    logger := log.FromContext(ctx)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">var</span> vm yourAppV1.VM</span><br><span class="line">    <span class="keyword">if</span> err := r.Get(ctx, req.NamespacedName, &amp;vm); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> ctrl.Result&#123;&#125;, client.IgnoreNotFound(err)</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// deletionTimestamp 为零值，说明对象未被删除</span></span><br><span class="line">    <span class="keyword">if</span> vm.ObjectMeta.DeletionTimestamp.IsZero() &#123;</span><br><span class="line">        <span class="comment">// 确保 finalizer 存在</span></span><br><span class="line">        <span class="keyword">if</span> !controllerutil.ContainsFinalizer(&amp;vm, vmFinalizer) &#123;</span><br><span class="line">            controllerutil.AddFinalizer(&amp;vm, vmFinalizer)</span><br><span class="line">            <span class="keyword">if</span> err := r.Update(ctx, &amp;vm); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 对象正在被删除</span></span><br><span class="line">        <span class="keyword">if</span> controllerutil.ContainsFinalizer(&amp;vm, vmFinalizer) &#123;</span><br><span class="line">            <span class="comment">// 执行外部资源清理</span></span><br><span class="line">            <span class="keyword">if</span> err := r.deleteExternalVM(ctx, &amp;vm); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="comment">// 清理失败，返回错误以便重试</span></span><br><span class="line">                <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">// 清理成功，移除 finalizer</span></span><br><span class="line">            controllerutil.RemoveFinalizer(&amp;vm, vmFinalizer)</span><br><span class="line">            <span class="keyword">if</span> err := r.Update(ctx, &amp;vm); err != <span class="literal">nil</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">// finalizer 移除后停止 Reconcile，对象将被真正删除</span></span><br><span class="line">        <span class="keyword">return</span> ctrl.Result&#123;&#125;, <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    logger.Info(<span class="string">&quot;reconcile finished&quot;</span>)</span><br><span class="line">    <span class="keyword">return</span> ctrl.Result&#123;&#125;, <span class="literal">nil</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="三、Event"><a href="#三、Event" class="headerlink" title="三、Event"></a>三、Event</h2><p>排查 Operator 行为时，<code>kubectl describe</code> 里的 Event 列表非常有用。控制器可以通过 <code>record.EventRecorder</code> 主动记录 Event，标注它对资源做了哪些关键动作。</p>
+<h3 id="3-1-在-Reconciler-中添加-Recorder-字段"><a href="#3-1-在-Reconciler-中添加-Recorder-字段" class="headerlink" title="3.1 在 Reconciler 中添加 Recorder 字段"></a>3.1 在 Reconciler 中添加 Recorder 字段</h3><figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;k8s.io/client-go/tools/record&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="keyword">type</span> MyJobReconciler <span class="keyword">struct</span> &#123;</span><br><span class="line">    client.Client</span><br><span class="line">    Scheme   *runtime.Scheme</span><br><span class="line">    Recorder record.EventRecorder</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-2-初始化-Recorder"><a href="#3-2-初始化-Recorder" class="headerlink" title="3.2 初始化 Recorder"></a>3.2 初始化 Recorder</h3><p>在 <code>main.go</code> 里 setup Reconciler 时，通过 <code>mgr.GetEventRecorderFor</code> 初始化：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> err := (&amp;controller.MyJobReconciler&#123;</span><br><span class="line">    Client:   mgr.GetClient(),</span><br><span class="line">    Scheme:   mgr.GetScheme(),</span><br><span class="line">    Recorder: mgr.GetEventRecorderFor(<span class="string">&quot;myjob-controller&quot;</span>),</span><br><span class="line">&#125;).SetupWithManager(mgr); err != <span class="literal">nil</span> &#123;</span><br><span class="line">    setupLog.Error(err, <span class="string">&quot;unable to create controller&quot;</span>, <span class="string">&quot;controller&quot;</span>, <span class="string">&quot;MyJob&quot;</span>)</span><br><span class="line">    os.Exit(<span class="number">1</span>)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="3-3-记录-Event"><a href="#3-3-记录-Event" class="headerlink" title="3.3 记录 Event"></a>3.3 记录 Event</h3><p>在 Reconcile 中通过 <code>Eventf</code> 记录事件。它有 <code>Normal</code> 和 <code>Warning</code> 两种类型：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">r.Recorder.Eventf(&amp;myJob, corev1.EventTypeNormal, <span class="string">&quot;Created&quot;</span>, <span class="string">&quot;Created pod %s&quot;</span>, pod.Name)</span><br><span class="line">r.Recorder.Eventf(&amp;myJob, corev1.EventTypeWarning, <span class="string">&quot;FailedCreate&quot;</span>, <span class="string">&quot;Failed to create pod: %v&quot;</span>, err)</span><br></pre></td></tr></table></figure>
+
+<p>之后就能在 <code>kubectl describe myjob xxx</code> 的输出末尾看到这些 Event。</p>
+<h3 id="3-4-避免无意义的-Reconcile"><a href="#3-4-避免无意义的-Reconcile" class="headerlink" title="3.4 避免无意义的 Reconcile"></a>3.4 避免无意义的 Reconcile</h3><p>更新 status 时，如果内容没有变化却仍然调用 <code>Update</code>，会触发新一轮 Reconcile，造成无意义的循环。推荐的做法是先用 <code>DeepCopy</code> 保存旧值，比对后确实有变化才更新：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> <span class="string">&quot;reflect&quot;</span></span><br><span class="line"></span><br><span class="line">oldStatus := myJob.Status.DeepCopy()</span><br><span class="line"></span><br><span class="line"><span class="comment">// ... 计算新的 status ...</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> !reflect.DeepEqual(oldStatus, &amp;myJob.Status) &#123;</span><br><span class="line">    <span class="keyword">if</span> err := r.Status().Update(ctx, &amp;myJob); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> ctrl.Result&#123;&#125;, err</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h2 id="四、Watching-Resource"><a href="#四、Watching-Resource" class="headerlink" title="四、Watching Resource"></a>四、Watching Resource</h2><p>前面 <code>.Owns()</code> 只能监听有 OwnerReference 关系的子资源。有时我们需要监听「没有归属关系」的其他资源，比如某个 ConfigMap 变更时触发一批 CR 的 Reconcile。这时可以用手动 Watch。</p>
+<h3 id="4-1-手动-Watch"><a href="#4-1-手动-Watch" class="headerlink" title="4.1 手动 Watch"></a>4.1 手动 Watch</h3><p>在 <code>SetupWithManager</code> 中通过 <code>Watches</code> + <code>handler.EnqueueRequestsFromMapFunc</code> 声明监听，并用一个映射函数把「被监听资源的变更」转换为「要 Reconcile 的 CR 请求列表」：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> SetupWithManager(mgr ctrl.Manager) <span class="type">error</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ctrl.NewControllerManagedBy(mgr).</span><br><span class="line">        For(&amp;batchv1.MyJob&#123;&#125;).</span><br><span class="line">        Watches(</span><br><span class="line">            &amp;corev1.ConfigMap&#123;&#125;,</span><br><span class="line">            handler.EnqueueRequestsFromMapFunc(r.findObjectsForConfigMap),</span><br><span class="line">        ).</span><br><span class="line">        Complete(r)</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="comment">// 当 ConfigMap 变更时，返回需要 Reconcile 的 MyJob 列表</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> findObjectsForConfigMap(ctx context.Context, cm client.Object) []reconcile.Request &#123;</span><br><span class="line">    <span class="keyword">var</span> jobList batchv1.MyJobList</span><br><span class="line">    <span class="keyword">if</span> err := r.List(ctx, &amp;jobList); err != <span class="literal">nil</span> &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">nil</span></span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    requests := <span class="built_in">make</span>([]reconcile.Request, <span class="number">0</span>, <span class="built_in">len</span>(jobList.Items))</span><br><span class="line">    <span class="keyword">for</span> _, item := <span class="keyword">range</span> jobList.Items &#123;</span><br><span class="line">        requests = <span class="built_in">append</span>(requests, reconcile.Request&#123;</span><br><span class="line">            NamespacedName: types.NamespacedName&#123;</span><br><span class="line">                Name:      item.Name,</span><br><span class="line">                Namespace: item.Namespace,</span><br><span class="line">            &#125;,</span><br><span class="line">        &#125;)</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">return</span> requests</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="4-2-Predicates-过滤"><a href="#4-2-Predicates-过滤" class="headerlink" title="4.2 Predicates 过滤"></a>4.2 Predicates 过滤</h3><p>监听会产生大量事件，其中很多是我们不关心的（比如只关心 spec 变化，不关心 status 变化）。可以用 Predicates 过滤，减少无意义的 Reconcile：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/builder&quot;</span></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/event&quot;</span></span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/predicate&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> SetupWithManager(mgr ctrl.Manager) <span class="type">error</span> &#123;</span><br><span class="line">    <span class="keyword">return</span> ctrl.NewControllerManagedBy(mgr).</span><br><span class="line">        For(&amp;batchv1.MyJob&#123;&#125;).</span><br><span class="line">        WithEventFilter(predicate.Funcs&#123;</span><br><span class="line">            CreateFunc: <span class="function"><span class="keyword">func</span><span class="params">(e event.CreateEvent)</span></span> <span class="type">bool</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">true</span></span><br><span class="line">            &#125;,</span><br><span class="line">            UpdateFunc: <span class="function"><span class="keyword">func</span><span class="params">(e event.UpdateEvent)</span></span> <span class="type">bool</span> &#123;</span><br><span class="line">                <span class="comment">// 仅当 generation 变化（即 spec 变化）时才触发</span></span><br><span class="line">                <span class="keyword">return</span> e.ObjectOld.GetGeneration() != e.ObjectNew.GetGeneration()</span><br><span class="line">            &#125;,</span><br><span class="line">            DeleteFunc: <span class="function"><span class="keyword">func</span><span class="params">(e event.DeleteEvent)</span></span> <span class="type">bool</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> !e.DeleteStateUnknown</span><br><span class="line">            &#125;,</span><br><span class="line">            GenericFunc: <span class="function"><span class="keyword">func</span><span class="params">(e event.GenericEvent)</span></span> <span class="type">bool</span> &#123;</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">false</span></span><br><span class="line">            &#125;,</span><br><span class="line">        &#125;).</span><br><span class="line">        Complete(r)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>也可以只对某个监听源用 <code>builder.WithPredicates</code> 单独设置过滤：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Watches(</span><br><span class="line">    &amp;corev1.ConfigMap&#123;&#125;,</span><br><span class="line">    handler.EnqueueRequestsFromMapFunc(r.findObjectsForConfigMap),</span><br><span class="line">    builder.WithPredicates(predicate.ResourceVersionChangedPredicate&#123;&#125;),</span><br><span class="line">).</span><br></pre></td></tr></table></figure>
+
+<h2 id="五、Marker-元数据"><a href="#五、Marker-元数据" class="headerlink" title="五、Marker 元数据"></a>五、Marker 元数据</h2><p>Kubebuilder 使用一种特殊的注释——Marker，以 <code>//+kubebuilder:</code> 开头——来生成 CRD、RBAC、Webhook 配置等。它们看起来是普通注释，但会被 <code>controller-gen</code> 工具识别并生成对应的 YAML。按用途大致分为三类。</p>
+<h3 id="5-1-CRD-相关-Marker"><a href="#5-1-CRD-相关-Marker" class="headerlink" title="5.1 CRD 相关 Marker"></a>5.1 CRD 相关 Marker</h3><p>写在 API 类型定义（<code>api/v1/xxx_types.go</code>）上，用于控制生成的 CRD：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//+kubebuilder:object:root=true</span></span><br><span class="line"><span class="comment">//+kubebuilder:subresource:status</span></span><br><span class="line"><span class="comment">//+kubebuilder:resource:shortName=mj,scope=Namespaced</span></span><br><span class="line"><span class="comment">//+kubebuilder:printcolumn:name=&quot;Replicas&quot;,type=integer,JSONPath=`.spec.replicas`</span></span><br><span class="line"><span class="comment">//+kubebuilder:printcolumn:name=&quot;Age&quot;,type=date,JSONPath=`.metadata.creationTimestamp`</span></span><br><span class="line"><span class="keyword">type</span> MyJob <span class="keyword">struct</span> &#123;</span><br><span class="line">    metav1.TypeMeta   <span class="string">`json:&quot;,inline&quot;`</span></span><br><span class="line">    metav1.ObjectMeta <span class="string">`json:&quot;metadata,omitempty&quot;`</span></span><br><span class="line"></span><br><span class="line">    Spec   MyJobSpec   <span class="string">`json:&quot;spec,omitempty&quot;`</span></span><br><span class="line">    Status MyJobStatus <span class="string">`json:&quot;status,omitempty&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>常用 CRD Marker：</p>
+<table>
+<thead>
+<tr>
+<th>Marker</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>object:root=true</code></td>
+<td>标记该类型是一个顶级资源对象</td>
+</tr>
+<tr>
+<td><code>subresource:status</code></td>
+<td>启用 status 子资源，使 spec 与 status 更新分离</td>
+</tr>
+<tr>
+<td><code>resource:shortName=mj</code></td>
+<td>为资源设置简称，可用 <code>kubectl get mj</code></td>
+</tr>
+<tr>
+<td><code>resource:scope=Namespaced</code></td>
+<td>资源作用域（Namespaced 或 Cluster）</td>
+</tr>
+<tr>
+<td><code>printcolumn:...</code></td>
+<td>自定义 <code>kubectl get</code> 输出的展示列</td>
+</tr>
+</tbody></table>
+<p>字段级校验 Marker 写在 struct 字段上：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">type</span> MyJobSpec <span class="keyword">struct</span> &#123;</span><br><span class="line">    <span class="comment">//+kubebuilder:validation:Minimum=1</span></span><br><span class="line">    <span class="comment">//+kubebuilder:validation:Maximum=10</span></span><br><span class="line">    Replicas <span class="type">int32</span> <span class="string">`json:&quot;replicas&quot;`</span></span><br><span class="line"></span><br><span class="line">    <span class="comment">//+kubebuilder:validation:MaxLength=63</span></span><br><span class="line">    <span class="comment">//+kubebuilder:validation:Enum=Always;OnFailure;Never</span></span><br><span class="line">    RestartPolicy <span class="type">string</span> <span class="string">`json:&quot;restartPolicy&quot;`</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>如果希望资源支持 <code>kubectl scale</code>，可以启用 scale 子资源：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//+kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas</span></span><br></pre></td></tr></table></figure>
+
+<h3 id="5-2-Controller-相关-Marker"><a href="#5-2-Controller-相关-Marker" class="headerlink" title="5.2 Controller 相关 Marker"></a>5.2 Controller 相关 Marker</h3><p>主要是 RBAC 声明，写在控制器 Reconcile 方法上方，用于生成对应的 Role&#x2F;ClusterRole：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//+kubebuilder:rbac:groups=batch.tutorial.kubebuilder.io,resources=myjobs,verbs=get;list;watch;create;update;patch;delete</span></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=batch.tutorial.kubebuilder.io,resources=myjobs/status,verbs=get;update;patch</span></span><br><span class="line"><span class="comment">//+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete</span></span><br><span class="line"><span class="function"><span class="keyword">func</span> <span class="params">(r *MyJobReconciler)</span></span> Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, <span class="type">error</span>) &#123;</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<h3 id="5-3-Webhook-相关-Marker"><a href="#5-3-Webhook-相关-Marker" class="headerlink" title="5.3 Webhook 相关 Marker"></a>5.3 Webhook 相关 Marker</h3><p>用于生成 Webhook 配置，写在 Webhook 实现文件里：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//+kubebuilder:webhook:path=/mutate-batch-tutorial-kubebuilder-io-v1-myjob,mutating=true,failurePolicy=fail,sideEffects=None,groups=batch.tutorial.kubebuilder.io,resources=myjobs,verbs=create;update,versions=v1,name=mmyjob.kb.io,admissionReviewVersions=v1</span></span><br></pre></td></tr></table></figure>
+
+<p>常用字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>path</code></td>
+<td>Webhook 的 HTTP 路径</td>
+</tr>
+<tr>
+<td><code>mutating</code></td>
+<td>true 为变更（Mutating）Webhook，false 为校验（Validating）Webhook</td>
+</tr>
+<tr>
+<td><code>failurePolicy</code></td>
+<td>Webhook 调用失败时的策略（fail &#x2F; ignore）</td>
+</tr>
+<tr>
+<td><code>verbs</code></td>
+<td>拦截哪些操作（create &#x2F; update &#x2F; delete）</td>
+</tr>
+</tbody></table>
+<h2 id="六、其他"><a href="#六、其他" class="headerlink" title="六、其他"></a>六、其他</h2><h3 id="6-1-Controller-Scope（限定监视命名空间）"><a href="#6-1-Controller-Scope（限定监视命名空间）" class="headerlink" title="6.1 Controller Scope（限定监视命名空间）"></a>6.1 Controller Scope（限定监视命名空间）</h3><p>默认情况下，Manager 的 Cache 会监视整个集群的资源。如果 Operator 只需要关注某几个命名空间，可以通过 <code>cache.Options.DefaultNamespaces</code> 限定，减少内存占用和权限需求：</p>
+<figure class="highlight go"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> (</span><br><span class="line">    <span class="string">&quot;sigs.k8s.io/controller-runtime/pkg/cache&quot;</span></span><br><span class="line">)</span><br><span class="line"></span><br><span class="line">mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options&#123;</span><br><span class="line">    Scheme: scheme,</span><br><span class="line">    Cache: cache.Options&#123;</span><br><span class="line">        DefaultNamespaces: <span class="keyword">map</span>[<span class="type">string</span>]cache.Config&#123;</span><br><span class="line">            <span class="string">&quot;operator-namespace&quot;</span>: &#123;&#125;,</span><br><span class="line">            <span class="string">&quot;app-namespace&quot;</span>:      &#123;&#125;,</span><br><span class="line">        &#125;,</span><br><span class="line">    &#125;,</span><br><span class="line">&#125;)</span><br></pre></td></tr></table></figure>
+
+<h3 id="6-2-External-Resource（管理外部-API）"><a href="#6-2-External-Resource（管理外部-API）" class="headerlink" title="6.2 External Resource（管理外部 API）"></a>6.2 External Resource（管理外部 API）</h3><p>有时我们想用 Kubebuilder 为「不在当前项目里定义」的资源生成控制器脚手架，比如 Kubernetes 内置的 Core API，或者其他项目定义的 CRD。这时创建 API 时用 <code>--resource=false</code> 表示不生成资源类型定义，并通过 <code>--external-api-path</code> 和 <code>--external-api-domain</code> 指定外部资源：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">kubebuilder create api \</span><br><span class="line">    --group core \</span><br><span class="line">    --version v1 \</span><br><span class="line">    --kind Pod \</span><br><span class="line">    --resource=<span class="literal">false</span> \</span><br><span class="line">    --controller=<span class="literal">true</span> \</span><br><span class="line">    --external-api-path=k8s.io/api/core/v1 \</span><br><span class="line">    --external-api-domain=k8s.io</span><br></pre></td></tr></table></figure>
+
+<p>这样只会生成 Controller，而不会生成 <code>pod_types.go</code>，适合为已有资源编写自定义控制器。</p>
+<h3 id="6-3-PROJECT-文件详解"><a href="#6-3-PROJECT-文件详解" class="headerlink" title="6.3 PROJECT 文件详解"></a>6.3 PROJECT 文件详解</h3><p><code>kubebuilder init</code> 会在项目根目录生成一个 <code>PROJECT</code> 文件，记录项目的元数据，供 Kubebuilder 后续命令（如 <code>create api</code>）识别项目结构。典型内容：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">domain:</span> <span class="string">tutorial.kubebuilder.io</span></span><br><span class="line"><span class="attr">layout:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="string">go.kubebuilder.io/v4</span></span><br><span class="line"><span class="attr">projectName:</span> <span class="string">my-operator</span></span><br><span class="line"><span class="attr">repo:</span> <span class="string">github.com/example/my-operator</span></span><br><span class="line"><span class="attr">resources:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">api:</span></span><br><span class="line">      <span class="attr">crdVersion:</span> <span class="string">v1</span></span><br><span class="line">      <span class="attr">namespaced:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">controller:</span> <span class="literal">true</span></span><br><span class="line">    <span class="attr">domain:</span> <span class="string">tutorial.kubebuilder.io</span></span><br><span class="line">    <span class="attr">group:</span> <span class="string">batch</span></span><br><span class="line">    <span class="attr">kind:</span> <span class="string">MyJob</span></span><br><span class="line">    <span class="attr">path:</span> <span class="string">github.com/example/my-operator/api/v1</span></span><br><span class="line">    <span class="attr">version:</span> <span class="string">v1</span></span><br><span class="line"><span class="attr">version:</span> <span class="string">&quot;3&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p>各字段含义：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>domain</code></td>
+<td>API 组的域名后缀，所有 CRD 的 group 都会以它结尾</td>
+</tr>
+<tr>
+<td><code>layout</code></td>
+<td>项目使用的插件版本（如 <code>go.kubebuilder.io/v4</code>）</td>
+</tr>
+<tr>
+<td><code>projectName</code></td>
+<td>项目名称</td>
+</tr>
+<tr>
+<td><code>repo</code></td>
+<td>Go module 路径，即 <code>go.mod</code> 里的 module 名</td>
+</tr>
+<tr>
+<td><code>resources</code></td>
+<td>已创建的所有 API 资源列表，记录每个资源的 group&#x2F;version&#x2F;kind、是否有 controller 等</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>PROJECT 文件本身的 schema 版本</td>
+</tr>
+</tbody></table>
+<p>理解 PROJECT 文件有助于排查「为什么 <code>create api</code> 生成的目录结构不对」这类问题——它是 Kubebuilder 感知项目状态的唯一依据。</p>
+<h2 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://book.kubebuilder.io/">Kubebuilder 官方文档</a></li>
+<li><a target="_blank" rel="noopener" href="https://www.lixueduan.com/">lixueduan：Operator 最佳实践</a></li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://github.com/zmty365">爱吃芝麻汤圆</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://zmty365.github.io/posts/1000230/">http://zmty365.github.io/posts/1000230/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://zmty365.github.io" target="_blank">爱吃芝麻汤圆</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Kubernetes/">Kubernetes</a><a class="post-meta__tags" href="/tags/Operator/">Operator</a><a class="post-meta__tags" href="/tags/CRD/">CRD</a><a class="post-meta__tags" href="/tags/Kubebuilder/">Kubebuilder</a></div><div class="post-share"><div class="social-share" data-image="/img/avatar.jpg" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="post-reward"><div class="reward-button"><i class="fas fa-qrcode"></i>感谢您的支持！</div><div class="reward-main"><ul class="reward-all"><li class="reward-item"><a href="/img/wechat.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/wechat.jpg" alt="wechat"/></a><div class="post-qr-code-desc">wechat</div></li><li class="reward-item"><a href="/img/alipay.jpg" target="_blank"><img class="post-qr-code-img" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/alipay.jpg" alt="alipay"/></a><div class="post-qr-code-desc">alipay</div></li></ul></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/posts/1000227/" title="Kubernetes List-Watch 机制详解：从 client-go 到 Informer"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</div></div><div class="info-2"><div class="info-item-1">上一篇讲了控制器的三大核心机制（声明式管理、控制循环、事件驱动），其中「事件驱动」能够高效落地，靠的正是底层的 List-Watch 机制。本文自底向上梳理：基于 List-Watch 的控制器架构、List &amp; Watch 的概念与实践，以及在其之上封装的 Informer 机制。 一、基于 List-Watch 机制的控制器架构  1. 架构梳理默认情况下，所有节点的 kubelet、master 节点的 scheduler（调度器）、controller-manager（控制管理器）都采取 list-watch 机制。 可以总结以下几点：  kubelet、scheduler、controller 都采取 list-watch 机制。 这三个组件在启动时都要先 list 一次。 随后当做出一个动作（例如删除、扩容、缩容）时，都会经过类似的几步： api-server 收到命令，与底层的 etcd 交互，存储信息。 etcd 处理完后上报 api-server。 上层的组件（包括用户）不断 watch，了解变化后做出相应的动作，再反馈给 api-server。    ...</div></div></div></a><a class="pagination-related" href="/posts/1000231/" title="k8s 之 fieldsV1 简单介绍"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">k8s 之 fieldsV1 简单介绍</div></div><div class="info-2"><div class="info-item-1">用 client-go 或 controller-runtime 的 Client 查询一个 Deployment，把结果打印成 YAML，常常会发现里面多了一大坨 managedFields，而同样的对象用 kubectl get -o yaml 却看不到。这块内容里的 fieldsV1 到底是什么？为什么两边不一致？本文做一个简单的梳理。 一、为什么会出现 fieldsV11.1 Server-Side Apply（SSA）在 Kubernetes 1.18 之前，kubectl apply 采用的是 Client-Side Apply：客户端在本地计算差异（依赖 last-applied-configuration 注解），再把结果发给 API Server。这种方式有个问题——多个客户端（或控制器）同时修改同一个对象时，无法准确判断「某个字段到底是谁在管」，容易互相覆盖。 Kubernetes 1.18 正式引入了 Server-Side Apply（SSA） 机制，把「字段所有权」的计算搬到了服务端。API Server 会记录每个字段是被哪个「管理者」（manager...</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/1000229/" title="Kubebuilder 详解：设计哲学、核心概念与实战"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">Kubebuilder 详解：设计哲学、核心概念与实战</div></div><div class="info-2"><div class="info-item-1">Kubebuilder 是 Kubernetes SIG 官方维护的、用于构建 Kubernetes API 的框架，专注于通过自定义资源定义（CRD）扩展 Kubernetes 的能力。它类似 Web 开发里的 Rails 或 Spring Boot，能显著降低 API 开发的复杂度，并引导开发者遵循最佳实践。本文从设计哲学讲起，梳理核心概念与工作流程，最后用一个完整的 MyJob Operator 走通从初始化到实现控制器的全过程。 一、Kubebuilder 的设计哲学Kubebuilder 的设计哲学强调「最小化生成代码，最大化复用标准库和接口」，目的是降低维护成本、提高可读性，同时保持灵活性。它有一条层层递进的原则链： 1. 能用 Go 接口和库，就不用代码生成 优先利用 Go 的原生特性（接口、组合、反射）实现功能，而非依赖代码生成。例如 client-go 通过 client.Object 等接口操作资源，而不是为每个 CRD 生成一套客户端代码；Reconcile 逻辑也直接使用 context.Context、client.Client 等标准接口。这样能减少生...</div></div></div></a><a class="pagination-related" href="/posts/1000228/" title="扩展 Kubernetes Controller 的三种方式"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">扩展 Kubernetes Controller 的三种方式</div></div><div class="info-2"><div class="info-item-1">当内置资源无法满足业务需求时，Kubernetes 提供了多种扩展点，让我们能够把「自定义的运维逻辑」以声明式的方式接入集群。本文梳理三种主流的扩展方式：基于 CRD + 自定义控制器的 Operator、基于 API 聚合层的 扩展 API Server、以及在请求链路上做拦截的 Admission Controller（准入控制器），并说明它们各自的适用场景与取舍。 三种方式在扩展层次上并不冲突，而是作用在不同的位置： graph TB     Client[kubectl / 客户端] --&gt; API[kube-apiserver]     API --&gt;|请求进入时拦截校验/修改| ADM[Admission Controller 准入控制器]     API --&gt;|内置资源存 etcd| ETCD[etcd]     API --&gt;|聚合层转发自定义 API| AGG[扩展 API Server 独立进程]     CRD[CRD 自定义资源] --&gt; API     OP[Operator 自定义控制器] --&gt;|Watch CR...</div></div></div></a><a class="pagination-related" href="/posts/1000205/" title="Kubernetes 网络：Service、Pod 通讯与 Ingress"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 网络：Service、Pod 通讯与 Ingress</div></div><div class="info-2"><div class="info-item-1">Kubernetes 网络一、Kubernetes 的三种 IPKubernetes 中有三种不同层面的 IP，理解它们的区别是理解 K8s 网络的基础。  Node IP：Node 节点的 IP 地址 Node IP 是 Kubernetes 集群中节点的物理网卡 IP 地址，所有属于这个网络的服务器之间都能通过这个网络直接通信。  Pod IP：Pod 的 IP 地址 Pod IP 是每个 Pod 的 IP 地址，它由集群配置的 CNI 插件（如 Flannel、Calico 等）根据规划好的 Pod 网段分配，通常构成一个覆盖整个集群的虚拟网络。集群内的所有 Pod 都在同一个扁平的网络平面内，可以直接通过 Pod IP 互相通信。  Cluster IP：Service 的 IP 地址（Service Virtual IP，service vip） Cluster IP 是一个虚拟 IP，专门服务于 Kubernetes 的 Service 对象，由 Kubernetes 管理和分配。它有几个重要特点：  实际的消费者 Pod 通常并不直接调用 Service 的 Clu...</div></div></div></a><a class="pagination-related" href="/posts/1000213/" title="Kubernetes 各类 Pod 控制器的更新策略"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-05</div><div class="info-item-2">Kubernetes 各类 Pod 控制器的更新策略</div></div><div class="info-2"><div class="info-item-1">一、概述Kubernetes 中不同的工作负载控制器面向不同的应用形态（无状态、有状态、节点级守护进程、批处理任务），它们的更新策略也各不相同。理解每类控制器”如何更新”，是保证应用平滑升级、避免意外停机的基础。 本文横向对比 Deployment、StatefulSet、DaemonSet、Job &#x2F; CronJob、ReplicaSet 五类控制器的更新机制。 graph TB     Start[需要更新应用] --&gt; Q&#123;应用形态&#125;     Q --&gt;|无状态| Dep[Deployment]     Q --&gt;|有状态| Sts[StatefulSet]     Q --&gt;|节点级守护进程| Ds[DaemonSet]     Q --&gt;|批处理任务| Job[Job / CronJob]     Dep --&gt; DepS[strategy: RollingUpdate / Recreate]     Sts --&gt; StsS[updateStrategy: RollingUpdate 按序号逆序 ...</div></div></div></a><a class="pagination-related" href="/posts/1000225/" title="Kubernetes 调度器详解：从调度流程到自定义调度器"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-07</div><div class="info-item-2">Kubernetes 调度器详解：从调度流程到自定义调度器</div></div><div class="info-2"><div class="info-item-1">kube-scheduler 是 Kubernetes 控制平面的核心组件，负责为每个待调度的 Pod 挑选一个最合适的节点。本文从调度的完整流程出发，覆盖优先级调度与抢占、调度器调优、默认调度器的部署形态，以及基于调度框架的自定义调度扩展。  提示：本文调度器配置示例统一采用稳定版 API kubescheduler.config.k8s.io/v1（自 Kubernetes 1.25 起 GA）。早期文档中的 v1beta1、v1beta2 等版本已废弃，请以本文为准。  一、调度过程API Server 在接受客户端提交的 Pod 对象创建请求后，通过调度器（kube-scheduler）从集群中选择一个可用的最佳节点来创建并运行 Pod。 调度器通过以下步骤完成调度：  Watch API Server：调度器 watch API Server，将 spec.nodeName 为空的 Pod 放入调度器内部的调度队列中。 节点预选（Predicates &#x2F; Filter）：调度器基于一系列预选规则对每个节点进行检查，过滤不符合条件的节点。例如： 节点标签必须匹配...</div></div></div></a><a class="pagination-related" href="/posts/1000219/" title="Kubernetes CNI 详解：网络模型、工作原理与主流插件"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-06</div><div class="info-item-2">Kubernetes CNI 详解：网络模型、工作原理与主流插件</div></div><div class="info-2"><div class="info-item-1">一、CNI 概述Container Network Interface（CNI） 是由 CNCF（Cloud Native Computing Foundation）维护的开源项目，旨在为容器提供一致的网络配置接口。CNI 定义了一组规范和插件，使容器运行时（如 containerd、CRI-O 等）能够与第三方网络插件（CNI 插件）通信，从而实现容器网络的配置和管理。 Kubernetes 集群内的网络模型定义了以下几点：  每个 Pod 都有独立的 IP 地址：Pod 内所有容器共享同一个网络命名空间，因此共享同一个 IP 和网络配置。 集群内 Pod 处于扁平网络：所有 Pod 可直接互相通信，无需经过 NAT。 Service 与 Cluster IP：Kubernetes 提供 Service 和 Cluster IP，使服务能在集群内被发现和访问。 外部访问：外部请求可通过 NodePort、LoadBalancer 或 Ingress 等方式访问集群内服务。    二、CNI 的工作原理CNI 的核心思想是把容器的网络配置与容器运行时解耦，通过插件机制实现网络配置...</div></div></div></a></div></div><hr class="custom-hr"/><div id="post-comment"><div class="comment-head"><div class="comment-headline"><i class="fas fa-comments fa-fw"></i><span> 评论</span></div><div class="comment-switch"><span class="first-comment">Valine</span><span id="switch-btn"></span><span class="second-comment">Gitalk</span></div></div><div class="comment-wrap"><div><div class="vcomment" id="vcomment"></div></div><div><div id="gitalk-container"></div></div></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" data-lazy-src="/img/avatar.jpg" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">爱吃芝麻汤圆</div><div class="author-info-description">事情开始变得有趣啦！</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">41</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">72</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/zmty365"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/zmty365" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:huik47816@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a><a class="social-icon" href="https://blog.csdn.net/woshihlf" target="_blank" title="CSDN"><i class="fa-solid fa-code" style="color: #24292e;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E3%80%81OwnerReference"><span class="toc-number">1.</span> <span class="toc-text">一、OwnerReference</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-1-%E8%AE%BE%E7%BD%AE-OwnerReference"><span class="toc-number">1.1.</span> <span class="toc-text">1.1 设置 OwnerReference</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-2-%E5%AD%90%E8%B5%84%E6%BA%90%E5%8F%98%E6%9B%B4%E8%A7%A6%E5%8F%91-Owner-%E7%9A%84-Reconcile"><span class="toc-number">1.2.</span> <span class="toc-text">1.2 子资源变更触发 Owner 的 Reconcile</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#1-3-%E9%9C%80%E8%A6%81%E7%9A%84-RBAC-%E6%9D%83%E9%99%90"><span class="toc-number">1.3.</span> <span class="toc-text">1.3 需要的 RBAC 权限</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%8C%E3%80%81Finalizers"><span class="toc-number">2.</span> <span class="toc-text">二、Finalizers</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#2-1-%E5%B7%A5%E4%BD%9C%E5%8E%9F%E7%90%86"><span class="toc-number">2.1.</span> <span class="toc-text">2.1 工作原理</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-2-%E6%B3%A8%E6%84%8F%E8%A6%81%E7%82%B9"><span class="toc-number">2.2.</span> <span class="toc-text">2.2 注意要点</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-3-%E5%AE%8C%E6%95%B4%E7%A4%BA%E4%BE%8B"><span class="toc-number">2.3.</span> <span class="toc-text">2.3 完整示例</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E3%80%81Event"><span class="toc-number">3.</span> <span class="toc-text">三、Event</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#3-1-%E5%9C%A8-Reconciler-%E4%B8%AD%E6%B7%BB%E5%8A%A0-Recorder-%E5%AD%97%E6%AE%B5"><span class="toc-number">3.1.</span> <span class="toc-text">3.1 在 Reconciler 中添加 Recorder 字段</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-2-%E5%88%9D%E5%A7%8B%E5%8C%96-Recorder"><span class="toc-number">3.2.</span> <span class="toc-text">3.2 初始化 Recorder</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-3-%E8%AE%B0%E5%BD%95-Event"><span class="toc-number">3.3.</span> <span class="toc-text">3.3 记录 Event</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-4-%E9%81%BF%E5%85%8D%E6%97%A0%E6%84%8F%E4%B9%89%E7%9A%84-Reconcile"><span class="toc-number">3.4.</span> <span class="toc-text">3.4 避免无意义的 Reconcile</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%9B%9B%E3%80%81Watching-Resource"><span class="toc-number">4.</span> <span class="toc-text">四、Watching Resource</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#4-1-%E6%89%8B%E5%8A%A8-Watch"><span class="toc-number">4.1.</span> <span class="toc-text">4.1 手动 Watch</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#4-2-Predicates-%E8%BF%87%E6%BB%A4"><span class="toc-number">4.2.</span> <span class="toc-text">4.2 Predicates 过滤</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%BA%94%E3%80%81Marker-%E5%85%83%E6%95%B0%E6%8D%AE"><span class="toc-number">5.</span> <span class="toc-text">五、Marker 元数据</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#5-1-CRD-%E7%9B%B8%E5%85%B3-Marker"><span class="toc-number">5.1.</span> <span class="toc-text">5.1 CRD 相关 Marker</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-2-Controller-%E7%9B%B8%E5%85%B3-Marker"><span class="toc-number">5.2.</span> <span class="toc-text">5.2 Controller 相关 Marker</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#5-3-Webhook-%E7%9B%B8%E5%85%B3-Marker"><span class="toc-number">5.3.</span> <span class="toc-text">5.3 Webhook 相关 Marker</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%AD%E3%80%81%E5%85%B6%E4%BB%96"><span class="toc-number">6.</span> <span class="toc-text">六、其他</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#6-1-Controller-Scope%EF%BC%88%E9%99%90%E5%AE%9A%E7%9B%91%E8%A7%86%E5%91%BD%E5%90%8D%E7%A9%BA%E9%97%B4%EF%BC%89"><span class="toc-number">6.1.</span> <span class="toc-text">6.1 Controller Scope（限定监视命名空间）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-2-External-Resource%EF%BC%88%E7%AE%A1%E7%90%86%E5%A4%96%E9%83%A8-API%EF%BC%89"><span class="toc-number">6.2.</span> <span class="toc-text">6.2 External Resource（管理外部 API）</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#6-3-PROJECT-%E6%96%87%E4%BB%B6%E8%AF%A6%E8%A7%A3"><span class="toc-number">6.3.</span> <span class="toc-text">6.3 PROJECT 文件详解</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83"><span class="toc-number">7.</span> <span class="toc-text">参考</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000232/" title="Kubernetes Volume Snapshots 详解">Kubernetes Volume Snapshots 详解</a><time datetime="2026-08-07T08:00:00.000Z" title="发表于 2026-08-07 16:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000231/" title="k8s 之 fieldsV1 简单介绍">k8s 之 fieldsV1 简单介绍</a><time datetime="2026-08-07T07:00:00.000Z" title="发表于 2026-08-07 15:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000230/" title="k8s 之 Kubebuilder 最佳实践">k8s 之 Kubebuilder 最佳实践</a><time datetime="2026-08-07T06:00:00.000Z" title="发表于 2026-08-07 14:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000227/" title="Kubernetes List-Watch 机制详解：从 client-go 到 Informer">Kubernetes List-Watch 机制详解：从 client-go 到 Informer</a><time datetime="2026-08-07T05:00:00.000Z" title="发表于 2026-08-07 13:00:00">2026-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/1000226/" title="Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动">Kubernetes 控制器的三大核心机制：声明式管理、控制循环与事件驱动</a><time datetime="2026-08-07T04:00:00.000Z" title="发表于 2026-08-07 12:00:00">2026-08-07</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"></div><div class="footer_custom_text"><style>
+  .footer {
+    text-align: center;
+    position: relative;
+  }
+  .social-links {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  .social-links i {
+    color: #fafafa;
+  }
+  .social-link {
+    color: #fafafa;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background: rgba(138, 43, 226, 0.1);
+  }
+  .social-link:hover {
+    color: #fafafa;
+    background: #fafafa;
+    transform: translateY(-3px) scale(1.2);
+    box-shadow: 0 5px 15px rgba(138, 43, 226, 0.4);
+    text-decoration: none !important; 
+  }
+  .footer p {
+    margin: 0.5rem 0;
+    line-height: 1;
+  }
+  .copyright {
+    font-size: 1.15rem; 
+    color: #fafafa;
+    font-weight: 400;
+  }
+  .visitor-count {
+    font-size: 0.9rem;
+    color: #fafafa;
+    font-weight: 300;
+  }
+  #visitorCount {
+    font-weight: bold;
+  }
+</style>
+<div class="footer">
+  <div class="social-links">
+    <a href="https://github.com/zmty365" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="GitHub" title="GitHub">
+      <i class="fab fa-github"></i>
+    </a>
+    <a href="https://blog.csdn.net/woshihlf" class="social-link" target="_blank" rel="noopener noreferrer" aria-label="CSDN" title="CSDN">
+      <i class="fas fa-code"></i>
+    </a>
+  </div>
+  <p class="copyright">© 2025 爱吃芝麻汤圆 - 所有权利保留</p>
+  <p class="visitor-count">访问量: <span id="visitorCount">1024</span> | 你是第 <span id="dailyVisitor">1</span> 位今日访客</p>
+</div>
+<script>
+  // 确保DOM加载完成后执行
+  document.addEventListener('DOMContentLoaded', function() {
+    // 模拟访问量增长
+    function updateVisitorCount() {
+      const countElement = document.getElementById('visitorCount');
+      let count = parseInt(countElement.textContent) || 1024;
+      // 从localStorage获取或初始化计数
+      const storedCount = localStorage.getItem('totalVisitors');
+      if (storedCount) {
+        count = parseInt(storedCount);
+        countElement.textContent = count;
+      }
+      // 每日访客计数
+      const today = new Date().toDateString();
+      const dailyData = JSON.parse(localStorage.getItem('dailyVisitors') || '{"date":"", "count":0}');
+      if (dailyData.date !== today) {
+        dailyData.date = today;
+        dailyData.count = 0;
+      }
+      dailyData.count += 1;
+      document.getElementById('dailyVisitor').textContent = dailyData.count;
+      localStorage.setItem('dailyVisitors', JSON.stringify(dailyData));
+      // 每30秒随机增加访问量
+      setInterval(() => {
+        count += Math.floor(Math.random() * 3);
+        countElement.textContent = count;
+        localStorage.setItem('totalVisitors', count.toString());
+      }, 30000);
+    }
+    updateVisitorCount();
+    // 添加点击动画效果
+    const socialLinks = document.querySelectorAll('.social-link');
+    socialLinks.forEach(link => {
+      link.addEventListener('click', function() {
+        this.style.transform = 'scale(0.9)';
+        setTimeout(() => {
+          this.style.transform = '';
+        }, 300);
+      });
+    });
+  });
+</script>
+</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><a id="to_comment" href="#post-comment" title="前往评论"><i class="fas fa-comments"></i></a><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui/dist/fancybox/fancybox.umd.min.js"></script><script src="https://cdn.jsdelivr.net/npm/vanilla-lazyload/dist/lazyload.iife.min.js"></script><div class="js-pjax"><script>(() => {
+  const parseViewBox = viewBox => {
+    if (!viewBox) return null
+    const parts = viewBox.trim().split(/[\s,]+/).map(n => Number(n))
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return null
+    return parts
+  }
+
+  const getSvgViewBox = svg => {
+    const attr = parseViewBox(svg.getAttribute('viewBox'))
+    if (attr) return attr
+
+    // Fallback: use bbox to build a viewBox
+    try {
+      const bbox = svg.getBBox()
+      if (bbox && bbox.width && bbox.height) return [bbox.x, bbox.y, bbox.width, bbox.height]
+    } catch (e) {
+      // getBBox may fail on some edge cases; ignore
+    }
+
+    const w = Number(svg.getAttribute('width')) || 0
+    const h = Number(svg.getAttribute('height')) || 0
+    if (w > 0 && h > 0) return [0, 0, w, h]
+    return [0, 0, 100, 100]
+  }
+
+  const setSvgViewBox = (svg, vb) => {
+    svg.setAttribute('viewBox', `${vb[0]} ${vb[1]} ${vb[2]} ${vb[3]}`)
+  }
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+
+  const openSvgInNewTab = ({ source, initViewBox }) => {
+    const getClonedSvg = () => {
+      if (typeof source === 'string') {
+        const template = document.createElement('template')
+        template.innerHTML = source.trim()
+        const svg = template.content.querySelector('svg')
+        return svg ? svg.cloneNode(true) : null
+      }
+      if (source && typeof source.cloneNode === 'function') {
+        return source.cloneNode(true)
+      }
+      return null
+    }
+
+    const clone = getClonedSvg()
+    if (!clone) return
+    if (initViewBox && initViewBox.length === 4) {
+      clone.setAttribute('viewBox', initViewBox.join(' '))
+    }
+    if (!clone.getAttribute('xmlns')) clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+    if (!clone.getAttribute('xmlns:xlink') && clone.innerHTML.includes('xlink:')) {
+      clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink')
+    }
+    // inject background to match current theme
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
+    const bg = getComputedStyle(document.body).backgroundColor || (isDark ? '#1e1e1e' : '#ffffff')
+    if (!clone.style.background) clone.style.background = bg
+
+    const serializer = new XMLSerializer()
+    const svgSource = serializer.serializeToString(clone)
+    const htmlSource = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        html, body { width: 100%; height: 100%; margin: 0; display: flex; align-items: center; justify-content: center; background: ${bg}; }
+        svg { max-width: 100%; max-height: 100%; height: auto; width: auto; }
+      </style>
+      </head><body>${svgSource}</body></html>`
+    const blob = new Blob([htmlSource], { type: 'text/html;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank', 'noopener')
+
+    setTimeout(() => URL.revokeObjectURL(url), 5000)
+  }
+
+  const attachMermaidViewerButton = wrap => {
+    let btn = wrap.querySelector('.mermaid-open-btn')
+    if (!btn) {
+      btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'mermaid-open-btn'
+      wrap.appendChild(btn)
+    }
+
+    btn.innerHTML = '<i class="fa fa-search fa-fw" aria-hidden="true"></i>'
+
+    if (!btn.__mermaidViewerBound) {
+      btn.addEventListener('click', e => {
+        e.preventDefault()
+        e.stopPropagation()
+        const svg = wrap.__mermaidOriginalSvg || wrap.querySelector('svg')
+        if (!svg) return
+        const initViewBox = wrap.__mermaidInitViewBox
+        openSvgInNewTab({ source: svg, initViewBox })
+      })
+      btn.__mermaidViewerBound = true
+    }
+  }
+
+  // Zoom around a point (px, py) in the SVG viewport (in viewBox coordinates)
+  const zoomAtPoint = (vb, factor, px, py) => {
+    const w = vb[2] * factor
+    const h = vb[3] * factor
+    const nx = px - (px - vb[0]) * factor
+    const ny = py - (py - vb[1]) * factor
+    return [nx, ny, w, h]
+  }
+
+  const initMermaidGestures = wrap => {
+    // Clean up previous event listeners and pending frames
+    if (wrap.__mermaidAbortController) {
+      wrap.__mermaidAbortController.abort()
+      if (wrap.__mermaidRafId) cancelAnimationFrame(wrap.__mermaidRafId)
+    }
+    const ac = new AbortController()
+    wrap.__mermaidAbortController = ac
+    const svg = wrap.querySelector('svg')
+    if (!svg) return
+
+    // Ensure viewBox exists so gestures always work
+    const initVb = getSvgViewBox(svg)
+    wrap.__mermaidInitViewBox = initVb
+    wrap.__mermaidCurViewBox = initVb.slice()
+    setSvgViewBox(svg, initVb)
+    // Disable default gestures to prevent scroll chaining and pinch-zoom penetration in Chrome
+    svg.style.touchAction = 'none'
+
+    // Cache BoundingClientRect, throttled on scroll to reduce reflow
+    let cachedRect = svg.getBoundingClientRect()
+    let rectDirty = false
+    const markRectDirty = () => { rectDirty = true }
+    window.addEventListener('resize', markRectDirty, { signal: ac.signal })
+    window.addEventListener('scroll', markRectDirty, { signal: ac.signal, capture: true })
+    const getRect = () => {
+      if (rectDirty) {
+        cachedRect = svg.getBoundingClientRect()
+        rectDirty = false
+      }
+      return cachedRect
+    }
+
+    // Precompute clamp bounds from initial viewBox
+    const minW = initVb[2] * 0.1
+    const maxW = initVb[2] * 10
+    const minH = initVb[3] * 0.1
+    const maxH = initVb[3] * 10
+    const clampVb = vb => {
+      const out = vb.slice()
+      out[2] = clamp(out[2], minW, maxW)
+      out[3] = clamp(out[3], minH, maxH)
+      return out
+    }
+
+    // Throttle DOM updates using requestAnimationFrame
+    let pendingVb = null
+    let rafId = null
+    const applyVb = () => {
+      if (pendingVb) {
+        wrap.__mermaidCurViewBox = pendingVb
+        setSvgViewBox(svg, pendingVb)
+        pendingVb = null
+      }
+      rafId = null
+      wrap.__mermaidRafId = null
+    }
+    const setCurVb = vb => {
+      pendingVb = clampVb(vb)
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyVb)
+        wrap.__mermaidRafId = rafId
+      }
+    }
+
+    const state = {
+      pointers: new Map(),
+      startVb: null,
+      startDist: 0,
+      lastPointerX: 0,
+      lastPointerY: 0
+    }
+
+    const onPointerDown = e => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      svg.setPointerCapture(e.pointerId)
+      const curVb = wrap.__mermaidCurViewBox
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      if (state.pointers.size === 1) {
+        state.startVb = curVb.slice()
+        state.lastPointerX = e.clientX
+        state.lastPointerY = e.clientY
+      } else if (state.pointers.size === 2) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        state.startDist = Math.hypot(dx, dy)
+        state.startVb = curVb.slice()
+      }
+    }
+
+    const onPointerMove = e => {
+      if (!state.pointers.has(e.pointerId)) return
+      state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      if (state.pointers.size === 1 && state.startVb) {
+        const p = state.pointers.values().next().value
+        const dxClient = p.x - state.lastPointerX
+        const dyClient = p.y - state.lastPointerY
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+        const dx = dxClient * (curVb[2] / rect.width)
+        const dy = dyClient * (curVb[3] / rect.height)
+        setCurVb([curVb[0] - dx, curVb[1] - dy, curVb[2], curVb[3]])
+        return
+      }
+      if (state.pointers.size === 2 && state.startVb && state.startDist > 0) {
+        const pts = [...state.pointers.values()]
+        const dx = pts[0].x - pts[1].x
+        const dy = pts[0].y - pts[1].y
+        const dist = Math.hypot(dx, dy)
+        if (!dist) return
+        const factor = state.startDist / dist
+        const cx = (pts[0].x + pts[1].x) / 2
+        const cy = (pts[0].y + pts[1].y) / 2
+        const px = curVb[0] + (cx - rect.left) * (curVb[2] / rect.width)
+        const py = curVb[1] + (cy - rect.top) * (curVb[3] / rect.height)
+        setCurVb(zoomAtPoint(state.startVb, factor, px, py))
+      }
+    }
+
+    const onPointerUpOrCancel = e => {
+      // Release PointerCapture to avoid event capture anomalies
+      if (svg.hasPointerCapture && svg.hasPointerCapture(e.pointerId)) {
+        svg.releasePointerCapture(e.pointerId)
+      }
+      state.pointers.delete(e.pointerId)
+      if (state.pointers.size === 0) {
+        state.startVb = null
+        state.startDist = 0
+      } else if (state.pointers.size === 1) {
+        const p = state.pointers.values().next().value
+        state.lastPointerX = p.x
+        state.lastPointerY = p.y
+      }
+    }
+
+    const onWheel = e => {
+      // Prevent event bubbling from triggering external scroll
+      e.preventDefault()
+      e.stopPropagation()
+      // Normalize deltaY across deltaMode (Chrome uses pixels, Safari uses lines)
+      let delta = e.deltaY
+      if (e.deltaMode === 1) delta *= 16
+      else if (e.deltaMode === 2) delta *= 400
+
+      // Continuous zoom factor: smoother than fixed 1.1/0.9 steps
+      const zoomFactor = Math.pow(1.001, delta)
+
+      const curVb = wrap.__mermaidCurViewBox
+      const rect = getRect()
+      const px = curVb[0] + (e.clientX - rect.left) * (curVb[2] / rect.width)
+      const py = curVb[1] + (e.clientY - rect.top) * (curVb[3] / rect.height)
+      setCurVb(zoomAtPoint(curVb, zoomFactor, px, py))
+    }
+
+    const onDblClick = () => {
+      const init = wrap.__mermaidInitViewBox
+      if (init) setCurVb(init)
+    }
+
+    svg.addEventListener('pointerdown', onPointerDown, { signal: ac.signal })
+    svg.addEventListener('pointermove', onPointerMove, { signal: ac.signal })
+    svg.addEventListener('pointerup', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('pointercancel', onPointerUpOrCancel, { signal: ac.signal })
+    svg.addEventListener('wheel', onWheel, { passive: false, signal: ac.signal })
+    svg.addEventListener('dblclick', onDblClick, { signal: ac.signal })
+  }
+
+  const runMermaid = ele => {
+    window.loadMermaid = true
+    const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'default'
+    ele.forEach((item, index) => {
+      const mermaidSrc = item.firstElementChild
+      // Clean up event listeners before removing old SVG
+      if (item.__mermaidAbortController) {
+        item.__mermaidAbortController.abort()
+      }
+      const oldSvg = item.querySelector('svg')
+      if (oldSvg) oldSvg.remove()
+      let config = {}
+      try {
+        config = mermaidSrc.dataset.config ? JSON.parse(mermaidSrc.dataset.config) : {}
+      } catch (e) {
+        console.warn('[mermaid] failed to parse dataset.config:', e)
+      }
+      if (!config.theme) {
+        config.theme = theme
+      }
+      const mermaidThemeConfig = `%%{init: ${JSON.stringify(config)}}%%\n`
+      const mermaidID = `mermaid-${index}`
+      const mermaidDefinition = mermaidThemeConfig + mermaidSrc.textContent
+
+      const renderMermaid = svg => {
+        mermaidSrc.insertAdjacentHTML('afterend', svg)
+        if (true) initMermaidGestures(item)
+        item.__mermaidOriginalSvg = svg
+        if (true) attachMermaidViewerButton(item)
+      }
+
+      const handleError = err => {
+        console.error(`[mermaid] render failed for block #${index}:`, err)
+        const errorEl = document.createElement('div')
+        errorEl.className = 'mermaid-error'
+        errorEl.textContent = `Mermaid render error: ${err.message || err}`
+        mermaidSrc.insertAdjacentElement('afterend', errorEl)
+      }
+
+      try {
+        const renderFn = mermaid.render(mermaidID, mermaidDefinition)
+        // mermaid v9 and v10 compatibility
+        if (typeof renderFn === 'string') {
+          renderMermaid(renderFn)
+        } else {
+          renderFn.then(({ svg }) => renderMermaid(svg)).catch(handleError)
+        }
+      } catch (err) {
+        handleError(err)
+      }
+    })
+  }
+
+  const codeToMermaid = $article => {
+    const codeMermaidEle = $article.querySelectorAll('pre > code.mermaid')
+    if (codeMermaidEle.length === 0) return
+
+    codeMermaidEle.forEach(ele => {
+      const preEle = document.createElement('pre')
+      preEle.className = 'mermaid-src'
+      preEle.hidden = true
+      preEle.textContent = ele.textContent
+      const newEle = document.createElement('div')
+      newEle.className = 'mermaid-wrap'
+      newEle.appendChild(preEle)
+      ele.parentNode.replaceWith(newEle)
+    })
+  }
+
+  const loadMermaid = () => {
+    const $article = document.getElementById('article-container')
+    if (!$article) return
+
+    if (true) codeToMermaid($article)
+    const $mermaid = $article.querySelectorAll('.mermaid-wrap')
+    if ($mermaid.length === 0) return
+
+    const runMermaidFn = () => runMermaid($mermaid)
+    btf.addGlobalFn('themeChange', runMermaidFn, 'mermaid')
+    window.loadMermaid ? runMermaidFn() : btf.getScript('https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js').then(runMermaidFn)
+  }
+
+  btf.addGlobalFn('encrypt', loadMermaid, 'mermaid')
+  window.pjax ? loadMermaid() : document.addEventListener('DOMContentLoaded', loadMermaid)
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const initValine = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyValine = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const valineConfig = {
+      el: '#vcomment',
+      appId: '',
+      appKey: '',
+      avatar: 'monsterid',
+      serverURLs: '',
+      emojiMaps: "",
+      visitor: false,
+      ...option,
+      path: isShuoshuo ? path : (option && option.path) || window.location.pathname
+    }
+
+    new Valine(valineConfig)
+  }
+
+  const loadValine = async (el, path) => {
+    if (typeof Valine === 'function') {
+      initValine(el, path)
+    } else {
+      await btf.getScript('https://cdn.jsdelivr.net/npm/valine/dist/Valine.min.js')
+      initValine(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Valine'
+      ? window.shuoshuoComment = { loadComment: loadValine }
+      : window.loadOtherComment = loadValine
+    return
+  }
+
+  if ('Valine' === 'Valine' || !true) {
+    if (true) btf.loadComment(document.getElementById('vcomment'),loadValine)
+    else setTimeout(loadValine, 0)
+  } else {
+    window.loadOtherComment = loadValine
+  }
+})()</script><script>(() => {
+  const isShuoshuo = GLOBAL_CONFIG_SITE.pageType === 'shuoshuo'
+  const option = null
+
+  const commentCount = n => {
+    const isCommentCount = document.querySelector('#post-meta .gitalk-comment-count')
+    if (isCommentCount) {
+      isCommentCount.textContent= n
+    }
+  }
+
+  const initGitalk = (el, path) => {
+    if (isShuoshuo) {
+      window.shuoshuoComment.destroyGitalk = () => {
+        if (el.children.length) {
+          el.innerHTML = ''
+          el.classList.add('no-comment')
+        }
+      }
+    }
+
+    const gitalk = new Gitalk({
+      clientID: '',
+      clientSecret: '',
+      repo: '',
+      owner: '',
+      admin: [''],
+      updateCountCallback: commentCount,
+      ...option,
+      id: isShuoshuo ? path : (option && option.id) || 'e6b87f60014133038efe4a77f0bfb5b5'
+    })
+
+    gitalk.render('gitalk-container')
+  }
+
+  const loadGitalk = async(el, path) => {
+    if (typeof Gitalk === 'function') initGitalk(el, path)
+    else {
+      await btf.getCSS('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.css')
+      await btf.getScript('https://cdn.jsdelivr.net/npm/gitalk/dist/gitalk.min.js')
+      initGitalk(el, path)
+    }
+  }
+
+  if (isShuoshuo) {
+    'Valine' === 'Gitalk'
+      ? window.shuoshuoComment = { loadComment: loadGitalk }
+      : window.loadOtherComment = loadGitalk
+    return
+  }
+
+  if ('Valine' === 'Gitalk' || !true) {
+    if (true) btf.loadComment(document.getElementById('gitalk-container'), loadGitalk)
+    else loadGitalk()
+  } else {
+    window.loadOtherComment = loadGitalk
+  }
+})()</script></div><script src="/js/sakura.js"></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/activate-power-mode.min.js"></script><script>POWERMODE.colorful = true;
+POWERMODE.shake = true;
+POWERMODE.mobile = false;
+document.body.addEventListener('input', POWERMODE);
+</script><script id="click-heart" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/click-heart.min.js" async="async" mobile="false"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
